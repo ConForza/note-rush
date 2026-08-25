@@ -680,7 +680,7 @@ input:focus-visible {
 .music-staff {
   position: relative;
   width: 100%;
-  aspect-ratio: 160 / 37;
+  aspect-ratio: 160 / 39;
   min-width: 0;
   overflow: hidden;
 }

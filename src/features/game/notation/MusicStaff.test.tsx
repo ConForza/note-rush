@@ -13,6 +13,13 @@ const prompt = (
   clef,
 })
 
+const VIEWBOX_Y = 20
+const VIEWBOX_HEIGHT = 78
+const VIEWBOX_BOTTOM = VIEWBOX_Y + VIEWBOX_HEIGHT
+const CROP_SAFETY_MARGIN = 2
+// Measured from the rendered Bravura treble-clef glyph in the logical SVG.
+const TREBLE_CLEF_LOWER_BOUND_Y = 96
+
 const countRenderedSvgs = (container: HTMLElement): number =>
   container.querySelectorAll('svg').length
 
@@ -203,7 +210,21 @@ describe('MusicStaff', () => {
     expect(staveCenter).toBeGreaterThan(145)
     expect(staveCenter).toBeLessThan(175)
     expect(getRenderedStaveVerticalCenter(container)).toBeCloseTo(60.5, 1)
-    expect(container.querySelector('svg')).toHaveAttribute('viewBox', '0 20 320 74')
+    expect(container.querySelector('svg')).toHaveAttribute('viewBox', '0 20 320 78')
+  })
+
+  it('keeps the complete treble clef above the cropped SVG bottom edge', () => {
+    const { container } = render(
+      <MusicStaff prompt={prompt('C', 4, 'treble')} />,
+    )
+    const clefBaselineY = Number(
+      container.querySelector('.vf-clef text')?.getAttribute('y'),
+    )
+
+    expect(clefBaselineY).toBe(70)
+    expect(VIEWBOX_BOTTOM - TREBLE_CLEF_LOWER_BOUND_Y).toBeGreaterThanOrEqual(
+      CROP_SAFETY_MARGIN,
+    )
   })
 
   it.each([
@@ -218,11 +239,11 @@ describe('MusicStaff', () => {
       container.querySelector('.vf-clef text')?.getAttribute('y'),
     )
 
-    expect(getRenderedNoteY(container)).toBeGreaterThan(20)
-    expect(getRenderedNoteY(container)).toBeLessThan(94)
-    expect(clefY).toBeGreaterThan(20)
-    expect(clefY).toBeLessThan(94)
+    expect(getRenderedNoteY(container)).toBeGreaterThan(VIEWBOX_Y)
+    expect(getRenderedNoteY(container)).toBeLessThan(VIEWBOX_BOTTOM)
+    expect(clefY).toBeGreaterThan(VIEWBOX_Y)
+    expect(clefY).toBeLessThan(VIEWBOX_BOTTOM)
     expect(ledgerLineYs.length).toBeGreaterThan(0)
-    expect(ledgerLineYs.every((y) => y > 20 && y < 94)).toBe(true)
+    expect(ledgerLineYs.every((y) => y > VIEWBOX_Y && y < VIEWBOX_BOTTOM)).toBe(true)
   })
 })

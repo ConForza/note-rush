@@ -13,9 +13,9 @@ import {
 import { toVexFlowKey } from './vexflowAdapter'
 
 const LOGICAL_WIDTH = 320
-const LOGICAL_HEIGHT = 96
+const LOGICAL_HEIGHT = 98
 const VIEWBOX_Y = 20
-const VIEWBOX_HEIGHT = 74
+const VIEWBOX_HEIGHT = 78
 const STAVE_X = 65
 const STAVE_Y = 0
 const STAVE_WIDTH = 190

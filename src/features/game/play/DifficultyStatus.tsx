@@ -24,10 +24,7 @@ export const DifficultyStatus = ({
       {practice ? (
         <span className="final-level-badge">Fixed stage</span>
       ) : null}
-      {!practice && stage.correctHitsToAdvance === null ? (
-        <span className="final-level-badge">Final level</span>
-      ) : null}
-      {!practice && stage.correctHitsToAdvance !== null ? (
+      {!practice ? (
         <>
           <span className="progress-dots" aria-hidden="true">
             {Array.from({ length: stage.correctHitsToAdvance }, (_, index) => (

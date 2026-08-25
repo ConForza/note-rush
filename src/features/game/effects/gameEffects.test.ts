@@ -66,6 +66,19 @@ describe('game effects', () => {
     expect(haptics.emit).toHaveBeenCalledWith('correct')
   })
 
+  it('maps campaign completion to one dedicated success event', () => {
+    const audio = createFakeAudio()
+    const haptics = createFakeHaptics()
+    const effects = createGameEffects(preferences, { audio, haptics })
+
+    effects.emit('campaign-complete')
+
+    expect(audio.play).toHaveBeenCalledTimes(1)
+    expect(audio.play).toHaveBeenCalledWith('campaign-complete')
+    expect(haptics.emit).toHaveBeenCalledTimes(1)
+    expect(haptics.emit).toHaveBeenCalledWith('campaign-complete')
+  })
+
   it('does not create or call sound feedback when Sound is Off', () => {
     const audio = createFakeAudio()
     const haptics = createFakeHaptics()

@@ -9,6 +9,7 @@ const PATTERNS: Record<GameFeedbackEvent, number | number[]> = {
   'level-up': [18, 25, 18],
   'game-over': 45,
   'practice-complete': [15, 20, 15],
+  'campaign-complete': [18, 25, 18, 25, 35],
 }
 
 const getBrowserVibrate = (): VibrateFunction | null => {

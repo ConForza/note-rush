@@ -785,9 +785,9 @@ describe('GameScreen', () => {
     expect(createRound.mock.calls[12]?.[0].id).toBe('bass-basics')
   })
 
-  it('keeps the final level stable after twenty correct answers', () => {
+  it('completes the campaign after four correct answers in the final level', () => {
     const createRound = vi.fn(() => firstRound)
-    renderReady(<GameScreen createRound={createRound} />)
+    renderReady(<GameScreen createRound={createRound} onExit={vi.fn()} />)
 
     for (let index = 0; index < 20; index += 1) {
       fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
@@ -796,15 +796,87 @@ describe('GameScreen', () => {
 
     expect(screen.getByText('Level 6')).toBeInTheDocument()
     expect(screen.getByText('Mixed Clefs')).toBeInTheDocument()
-    expect(screen.getByText('Final level')).toBeInTheDocument()
+    expect(screen.getByText('0 / 4 correct')).toBeInTheDocument()
     expect(createRound).toHaveBeenCalledTimes(21)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
-    advanceHit()
+    for (let index = 0; index < 3; index += 1) {
+      fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
+      advanceHit()
+    }
 
-    expect(screen.getByText('Level 6')).toBeInTheDocument()
-    expect(screen.getByText('Final level')).toBeInTheDocument()
-    expect(createRound).toHaveBeenCalledTimes(22)
+    expect(screen.getByText('3 / 4 correct')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
+
+    expect(screen.getByRole('status')).toHaveTextContent('Correct!')
+    expect(screen.getByRole('status')).not.toHaveTextContent('Level up')
+    expect(createRound).toHaveBeenCalledTimes(24)
+
+    act(() => {
+      vi.advanceTimersByTime(399)
+    })
+    expect(screen.queryByRole('heading', { name: 'Campaign Complete' })).not.toBeInTheDocument()
+
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+
+    expect(screen.getByRole('heading', { name: 'Campaign Complete' })).toHaveFocus()
+    expect(screen.getByText('Final score')).toBeInTheDocument()
+    expect(screen.getByText('Best streak')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Play Again' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Change Setup' })).toBeInTheDocument()
+    expect(createRound).toHaveBeenCalledTimes(24)
+  })
+
+  it.each([
+    [52_999, 'campaign-complete'],
+    [53_000, 'game-over'],
+  ] as const)('resolves the final hit against the global timer at %sms', (now, expectedTerminal) => {
+    let finalTimerCheck = false
+    let finalClockCalls = 0
+    const clock = (): number => {
+      if (!finalTimerCheck) {
+        return 0
+      }
+
+      finalClockCalls += 1
+      return finalClockCalls === 1 ? 2_499 : now
+    }
+    const effects = createFakeEffects()
+    renderReady(
+      <GameScreen
+        clock={clock}
+        createRound={() => firstRound}
+        effects={effects}
+      />,
+    )
+
+    for (let index = 0; index < 23; index += 1) {
+      fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
+      advanceHit()
+    }
+
+    finalTimerCheck = true
+    fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
+
+    if (expectedTerminal === 'campaign-complete') {
+      expect(screen.getByRole('status')).toHaveTextContent('Correct!')
+      expect(effects.emit).not.toHaveBeenCalledWith('campaign-complete')
+      act(() => {
+        vi.advanceTimersByTime(399)
+      })
+      expect(screen.queryByRole('heading', { name: 'Campaign Complete' })).not.toBeInTheDocument()
+      act(() => {
+        vi.advanceTimersByTime(1)
+      })
+      expect(screen.getByRole('heading', { name: 'Campaign Complete' })).toBeInTheDocument()
+      expect(effects.emit).toHaveBeenCalledTimes(24)
+      expect(effects.emit).toHaveBeenLastCalledWith('campaign-complete')
+    } else {
+      expect(screen.getByRole('heading', { name: 'Game Over' })).toBeInTheDocument()
+      expect(effects.emit).toHaveBeenLastCalledWith('game-over')
+      expect(effects.emit).not.toHaveBeenCalledWith('campaign-complete')
+    }
   })
 
   it('includes the reached level in game over and resets it on restart', () => {

@@ -70,6 +70,11 @@ const CUES: Record<GameFeedbackEvent, readonly ToneCue[]> = {
     { frequency: 440, durationMs: 70, delayMs: 0, peakGain: 0.08, oscillatorType: 'sine' },
     { frequency: 660, durationMs: 95, delayMs: 65, peakGain: 0.09, oscillatorType: 'sine' },
   ],
+  'campaign-complete': [
+    { frequency: 523, durationMs: 65, delayMs: 0, peakGain: 0.09, oscillatorType: 'sine' },
+    { frequency: 659, durationMs: 65, delayMs: 55, peakGain: 0.09, oscillatorType: 'sine' },
+    { frequency: 988, durationMs: 135, delayMs: 110, peakGain: 0.11, oscillatorType: 'sine' },
+  ],
 }
 
 const getBrowserAudioContext = (): AudioContextLike | null => {

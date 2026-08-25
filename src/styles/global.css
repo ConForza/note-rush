@@ -593,6 +593,10 @@ input:focus-visible {
   fill: var(--target-crest);
 }
 
+.game-over--campaign-complete .brand-mark-burst {
+  fill: var(--success);
+}
+
 .game-over .eyebrow {
   margin-bottom: 0.5rem;
 }
@@ -607,6 +611,10 @@ input:focus-visible {
   margin: 0.65rem 0 0;
   color: var(--danger-text);
   font-weight: 800;
+}
+
+.game-over--campaign-complete .game-over-reason {
+  color: var(--success-text);
 }
 
 .game-over-stats {

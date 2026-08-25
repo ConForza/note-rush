@@ -2,6 +2,7 @@ export {
   GameScreen,
   type GamePhase,
   type GameOverReason,
+  type GameEndReason,
   type GameScreenProps,
 } from './GameScreen'
 export { GameHud, type GameHudProps } from './GameHud'
@@ -10,6 +11,10 @@ export {
   type GameOverScreenProps,
 } from './GameOverScreen'
 export {
+  CampaignCompleteScreen,
+  type CampaignCompleteScreenProps,
+} from './CampaignCompleteScreen'
+export {
   DifficultyStatus,
   type DifficultyStatusProps,
 } from './DifficultyStatus'
@@ -17,6 +22,7 @@ export {
   CORRECT_HITS_TO_ADVANCE,
   DIFFICULTY_STAGES,
   getDifficultyStage,
+  isFinalDifficultyStage,
   type DifficultyStage,
   type DifficultyStageId,
   type StagePromptSpec,

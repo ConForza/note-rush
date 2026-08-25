@@ -27,6 +27,7 @@ import {
 } from './targetEmergence'
 import { GameHud } from './GameHud'
 import { GameOverScreen } from './GameOverScreen'
+import { CampaignCompleteScreen } from './CampaignCompleteScreen'
 import { DifficultyStatus } from './DifficultyStatus'
 import { type DifficultyStage } from './gameDifficulty'
 import { WhackNoteMark } from './WhackNoteMark'
@@ -85,8 +86,9 @@ const prefersReducedMotion = (): boolean =>
   typeof window.matchMedia === 'function' &&
   window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-export type GamePhase = 'playing' | 'game-over'
+export type GamePhase = 'playing' | 'game-over' | 'campaign-complete'
 export type GameOverReason = 'lives' | 'time'
+export type GameEndReason = GameOverReason | 'campaign-complete'
 
 export interface GameScreenProps {
   createRound?: GameRoundFactory
@@ -169,8 +171,7 @@ export const GameScreen = ({
     )
   const [stats, setStats] = useState<GameStats>(createInitialGameStats)
   const [phase, setPhase] = useState<GamePhase>('playing')
-  const [gameOverReason, setGameOverReason] =
-    useState<GameOverReason | null>(null)
+  const [endReason, setEndReason] = useState<GameEndReason | null>(null)
   const [initialGameDeadline] = useState<number | null>(() => {
     const timerMs = getSessionTimerMs(sessionConfig)
 
@@ -189,7 +190,7 @@ export const GameScreen = ({
   const feedbackRef = useRef<RoundFeedback>(null)
   const statsRef = useRef(stats)
   const phaseRef = useRef<GamePhase>('playing')
-  const gameOverReasonRef = useRef<GameOverReason | null>(null)
+  const endReasonRef = useRef<GameEndReason | null>(null)
   const globalExpiredRef = useRef(false)
   const roundIdRef = useRef(0)
   const roundDeadlineRef = useRef(0)
@@ -297,37 +298,44 @@ export const GameScreen = ({
   }, [])
 
   const finishGame = useCallback(
-    (reason: GameOverReason): void => {
-      if (phaseRef.current === 'game-over') {
+    (reason: GameEndReason): void => {
+      if (phaseRef.current !== 'playing') {
         return
       }
 
-      phaseRef.current = 'game-over'
-      gameOverReasonRef.current = reason
+      const nextPhase: GamePhase =
+        reason === 'campaign-complete' ? 'campaign-complete' : 'game-over'
+
+      phaseRef.current = nextPhase
+      endReasonRef.current = reason
       globalPauseStartedRef.current = null
       emitEffect(
         sessionConfig.mode === 'practice'
           ? 'practice-complete'
-          : 'game-over',
+          : reason === 'campaign-complete'
+            ? 'campaign-complete'
+            : 'game-over',
       )
+      clearTransition()
       clearRoundReady()
       clearRoundExpiry()
       clearGlobalExpiry()
       clearIntervalRef(globalRefreshIntervalRef)
-      setPhase('game-over')
-      setGameOverReason(reason)
+      setPhase(nextPhase)
+      setEndReason(reason)
     },
     [
       clearGlobalExpiry,
       clearRoundExpiry,
       clearRoundReady,
+      clearTransition,
       emitEffect,
       sessionConfig.mode,
     ],
   )
 
   const refreshGlobalTimer = useCallback((): void => {
-    if (phaseRef.current === 'game-over') {
+    if (phaseRef.current !== 'playing') {
       return
     }
 
@@ -540,7 +548,11 @@ export const GameScreen = ({
       )
       const progressUpdate = sessionRules.usesProgression
         ? applyProgressResult(progressRef.current, outcome.type)
-        : { progress: progressRef.current, advanced: false }
+        : {
+            progress: progressRef.current,
+            advanced: false,
+            campaignCompleted: false,
+          }
       const nextFeedback: RoundFeedback =
         outcome.type === 'miss'
           ? { type: 'miss' }
@@ -554,13 +566,15 @@ export const GameScreen = ({
       feedbackRef.current = nextFeedback
       setStats(nextStats)
       setFeedback(nextFeedback)
-      emitEffect(
-        outcome.type === 'correct'
-          ? progressUpdate.advanced
-            ? 'level-up'
-            : 'correct'
-          : outcome.type,
-      )
+      if (!progressUpdate.campaignCompleted) {
+        emitEffect(
+          outcome.type === 'correct'
+            ? progressUpdate.advanced
+              ? 'level-up'
+              : 'correct'
+            : outcome.type,
+        )
+      }
 
       if (
         outcome.type === 'correct' &&
@@ -584,6 +598,11 @@ export const GameScreen = ({
         commitProgress(progressUpdate.progress)
 
         if (phaseRef.current !== 'playing') {
+          return
+        }
+
+        if (progressUpdate.campaignCompleted) {
+          finishGame('campaign-complete')
           return
         }
 
@@ -691,7 +710,7 @@ export const GameScreen = ({
   )
 
   const reconcileVisibility = useCallback((): void => {
-    if (phaseRef.current === 'game-over') {
+    if (phaseRef.current !== 'playing') {
       return
     }
 
@@ -747,7 +766,7 @@ export const GameScreen = ({
     isRoundResolvedRef.current = false
     progressRef.current = freshProgress
     phaseRef.current = 'playing'
-    gameOverReasonRef.current = null
+    endReasonRef.current = null
     roundRef.current = freshRound
     feedbackRef.current = null
     statsRef.current = createInitialGameStats()
@@ -759,7 +778,7 @@ export const GameScreen = ({
     setStats(statsRef.current)
     setFeedback(null)
     setPhase('playing')
-    setGameOverReason(null)
+    setEndReason(null)
     setRemainingTimeMs(
       freshDeadline === null
         ? null
@@ -870,11 +889,19 @@ export const GameScreen = ({
         <GameOverScreen
           score={stats.score}
           bestStreak={stats.bestStreak}
-          reason={gameOverReason ?? 'time'}
+          reason={endReason === 'lives' || endReason === 'time' ? endReason : 'time'}
           levelReached={currentStage}
           onRestart={handleRestart}
           onExit={onExit}
           practice={sessionConfig.mode === 'practice'}
+        />
+      ) : phase === 'campaign-complete' ? (
+        <CampaignCompleteScreen
+          score={stats.score}
+          bestStreak={stats.bestStreak}
+          levelReached={currentStage}
+          onRestart={handleRestart}
+          onExit={onExit}
         />
       ) : (
         <>

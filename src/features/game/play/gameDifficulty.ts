@@ -24,7 +24,7 @@ export interface DifficultyStage {
   readonly label: string
   readonly promptPool: readonly StagePromptSpec[]
   readonly roundLifetimeMs: number
-  readonly correctHitsToAdvance: number | null
+  readonly correctHitsToAdvance: number
 }
 
 const trebleBasics: StagePromptSpec = {
@@ -114,9 +114,12 @@ export const DIFFICULTY_STAGES: readonly DifficultyStage[] = [
     label: 'Mixed Clefs',
     promptPool: [trebleChallenge, bassExtended],
     roundLifetimeMs: 2_500,
-    correctHitsToAdvance: null,
+    correctHitsToAdvance: CORRECT_HITS_TO_ADVANCE,
   },
 ]
+
+export const isFinalDifficultyStage = (stageIndex: number): boolean =>
+  stageIndex === DIFFICULTY_STAGES.length - 1
 
 export const getDifficultyStage = (stageIndex: number): DifficultyStage => {
   if (

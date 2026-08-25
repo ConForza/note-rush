@@ -8,6 +8,7 @@ export type GameFeedbackEvent =
   | 'level-up'
   | 'game-over'
   | 'practice-complete'
+  | 'campaign-complete'
 
 export interface EffectPreferences {
   readonly soundEnabled: boolean

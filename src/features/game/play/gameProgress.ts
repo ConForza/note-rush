@@ -1,6 +1,7 @@
 import {
   DIFFICULTY_STAGES,
   getDifficultyStage,
+  isFinalDifficultyStage,
   type DifficultyStage,
 } from './gameDifficulty'
 import { type GameResult } from './gameStats'
@@ -13,6 +14,7 @@ export interface GameProgress {
 export interface ProgressUpdate {
   readonly progress: GameProgress
   readonly advanced: boolean
+  readonly campaignCompleted: boolean
 }
 
 export const createInitialGameProgress = (stageIndex = 0): GameProgress => ({
@@ -38,8 +40,8 @@ export const applyProgressResult = (
 ): ProgressUpdate => {
   const stage = validateProgress(progress)
 
-  if (result !== 'correct' || stage.correctHitsToAdvance === null) {
-    return { progress, advanced: false }
+  if (result !== 'correct') {
+    return { progress, advanced: false, campaignCompleted: false }
   }
 
   const nextCorrectInStage = progress.correctInStage + 1
@@ -51,6 +53,18 @@ export const applyProgressResult = (
         correctInStage: nextCorrectInStage,
       },
       advanced: false,
+      campaignCompleted: false,
+    }
+  }
+
+  if (isFinalDifficultyStage(progress.stageIndex)) {
+    return {
+      progress: {
+        ...progress,
+        correctInStage: nextCorrectInStage,
+      },
+      advanced: false,
+      campaignCompleted: true,
     }
   }
 
@@ -66,5 +80,6 @@ export const applyProgressResult = (
       correctInStage: 0,
     },
     advanced: true,
+    campaignCompleted: false,
   }
 }

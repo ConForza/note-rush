@@ -43,9 +43,7 @@ describe('difficulty curriculum', () => {
       expect(stage?.level).toBe(level)
       expect(stage?.label).toBe(label)
       expect(stage?.roundLifetimeMs).toBe(lifetime)
-      expect(stage?.correctHitsToAdvance).toBe(
-        level === 6 ? null : CORRECT_HITS_TO_ADVANCE,
-      )
+      expect(stage?.correctHitsToAdvance).toBe(CORRECT_HITS_TO_ADVANCE)
 
       if (level === 6) {
         expect(stage?.promptPool.map((spec) => spec.clef)).toEqual(['treble', 'bass'])

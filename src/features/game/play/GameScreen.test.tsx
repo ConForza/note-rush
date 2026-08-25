@@ -60,6 +60,7 @@ const advanceHit = (): void => {
 describe('GameScreen', () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    vi.setSystemTime(0)
   })
 
   afterEach(() => {
@@ -77,6 +78,7 @@ describe('GameScreen', () => {
     ).toBeInTheDocument()
     expect(getStatValue('Score')).toBe('0')
     expect(getStatValue('Streak')).toBe('0')
+    expect(getStatValue('Time')).toBe('30')
     expect(screen.getByText('3 lives remaining')).toBeInTheDocument()
     expect(container.querySelectorAll('svg')).toHaveLength(1)
     expect(container.querySelectorAll('.target-slot')).toHaveLength(6)
@@ -99,6 +101,210 @@ describe('GameScreen', () => {
     screen.getAllByRole('button').forEach((button) => {
       expect(button).toBeDisabled()
     })
+  })
+
+  it('refreshes the visible countdown from elapsed wall-clock time', () => {
+    render(<GameScreen createRound={() => firstRound} />)
+
+    expect(getStatValue('Time')).toBe('30')
+
+    act(() => {
+      vi.advanceTimersByTime(999)
+    })
+    expect(getStatValue('Time')).toBe('30')
+
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    expect(getStatValue('Time')).toBe('29')
+  })
+
+  it('adds one second to the absolute deadline for a correct answer', () => {
+    let now = 0
+    const clock = (): number => now
+    render(<GameScreen createRound={() => firstRound} clock={clock} />)
+
+    now = 1_000
+    act(() => {
+      vi.advanceTimersByTime(400)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
+
+    expect(getStatValue('Time')).toBe('30')
+  })
+
+  it('does not change the deadline for an incorrect answer', () => {
+    let now = 0
+    const clock = (): number => now
+    render(<GameScreen createRound={() => firstRound} clock={clock} />)
+
+    now = 1_000
+    fireEvent.click(screen.getByRole('button', { name: 'Hit D' }))
+
+    expect(getStatValue('Time')).toBe('29')
+    now = 1_500
+    act(() => {
+      vi.advanceTimersByTime(100)
+    })
+    expect(getStatValue('Time')).toBe('29')
+  })
+
+  it('resolves an expired round as a miss and reveals the correct target', () => {
+    const createRound = vi.fn(() => firstRound)
+    render(<GameScreen createRound={createRound} />)
+
+    act(() => {
+      vi.advanceTimersByTime(2_500)
+    })
+
+    expect(screen.getByRole('status')).toHaveTextContent('Too slow — C')
+    expect(getStatValue('Score')).toBe('0')
+    expect(getStatValue('Streak')).toBe('0')
+    expect(screen.getByText('2 lives remaining')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'C, correct answer' }),
+    ).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'C, correct answer' })).toHaveClass(
+      'target-button--correct-answer',
+    )
+    expect(createRound).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      vi.advanceTimersByTime(399)
+    })
+    expect(createRound).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    expect(createRound).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole('button', { name: 'Hit C' })).toBeEnabled()
+    expect(screen.getByRole('status')).not.toHaveTextContent('Too slow')
+  })
+
+  it('turns a stale hit after the round deadline into a miss', () => {
+    let now = 0
+    const clock = (): number => now
+    render(<GameScreen createRound={() => firstRound} clock={clock} />)
+
+    now = 2_500
+    fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
+
+    expect(screen.getByRole('status')).toHaveTextContent('Too slow — C')
+    expect(screen.getByText('2 lives remaining')).toBeInTheDocument()
+    expect(getStatValue('Score')).toBe('0')
+  })
+
+  it('shows miss feedback before game over when the final life expires', () => {
+    const createRound = vi.fn(() => firstRound)
+    render(<GameScreen createRound={createRound} />)
+
+    act(() => {
+      vi.advanceTimersByTime(2_500)
+      vi.advanceTimersByTime(400)
+      vi.advanceTimersByTime(2_500)
+      vi.advanceTimersByTime(400)
+      vi.advanceTimersByTime(2_500)
+    })
+
+    expect(screen.getByRole('status')).toHaveTextContent('Too slow — C')
+    expect(screen.getByText('0 lives remaining')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Game Over' })).not.toBeInTheDocument()
+
+    act(() => {
+      vi.advanceTimersByTime(400)
+    })
+
+    expect(screen.getByRole('heading', { name: 'Game Over' })).toBeInTheDocument()
+    expect(screen.getByText('Out of lives')).toBeInTheDocument()
+    expect(createRound).toHaveBeenCalledTimes(3)
+  })
+
+  it('shows time game over when the absolute global deadline is reached', () => {
+    let now = 0
+    const clock = (): number => now
+    render(<GameScreen createRound={() => firstRound} clock={clock} />)
+
+    now = 30_000
+    act(() => {
+      vi.advanceTimersByTime(100)
+    })
+
+    expect(screen.getByRole('heading', { name: 'Game Over' })).toBeInTheDocument()
+    expect(screen.getByText("Time's up")).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Note targets' })).not.toBeInTheDocument()
+  })
+
+  it('finishes after feedback when global time expires during a resolution', () => {
+    let now = 0
+    const clock = (): number => now
+    const createRound = vi.fn(() => firstRound)
+    render(<GameScreen createRound={createRound} clock={clock} />)
+
+    now = 1_000
+    fireEvent.click(screen.getByRole('button', { name: 'Hit D' }))
+    expect(screen.getByRole('status')).toHaveTextContent('Not quite — C')
+
+    now = 30_000
+    act(() => {
+      vi.advanceTimersByTime(100)
+    })
+    expect(screen.getByRole('status')).toHaveTextContent('Not quite — C')
+    expect(screen.queryByRole('heading', { name: 'Game Over' })).not.toBeInTheDocument()
+
+    act(() => {
+      vi.advanceTimersByTime(300)
+    })
+
+    expect(screen.getByRole('heading', { name: 'Game Over' })).toBeInTheDocument()
+    expect(screen.getByText("Time's up")).toBeInTheDocument()
+    expect(createRound).toHaveBeenCalledTimes(1)
+  })
+
+  it('lets the first event win the hit-versus-expiry race', () => {
+    const createRound = vi.fn(() => firstRound)
+    render(<GameScreen createRound={createRound} />)
+
+    act(() => {
+      vi.advanceTimersByTime(2_499)
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
+
+    expect(getStatValue('Score')).toBe('100')
+    expect(screen.getByText('3 lives remaining')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Correct!')
+
+    act(() => {
+      vi.advanceTimersByTime(401)
+    })
+
+    expect(createRound).toHaveBeenCalledTimes(2)
+    expect(screen.getByText('3 lives remaining')).toBeInTheDocument()
+  })
+
+  it('resets the global timer and restarts its refresh loop', () => {
+    let now = 0
+    const clock = (): number => now
+    const createRound = vi.fn(() => firstRound)
+    render(<GameScreen createRound={createRound} clock={clock} />)
+
+    now = 30_000
+    act(() => {
+      vi.advanceTimersByTime(100)
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Play Again' }))
+
+    expect(getStatValue('Time')).toBe('30')
+    expect(getStatValue('Score')).toBe('0')
+    expect(screen.getByText('3 lives remaining')).toBeInTheDocument()
+
+    now = 31_000
+    act(() => {
+      vi.advanceTimersByTime(100)
+    })
+
+    expect(getStatValue('Time')).toBe('29')
   })
 
   it('shows an incorrect target, resets streak, and removes one life', () => {

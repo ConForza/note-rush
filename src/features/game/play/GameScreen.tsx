@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type ReactElement } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactElement,
+} from 'react'
 import { MusicStaff } from '../notation'
 import {
   ACTIVE_TARGET_COUNT,
@@ -12,37 +18,75 @@ import { Target, type TargetVisualState } from './Target'
 import { GameHud } from './GameHud'
 import { GameOverScreen } from './GameOverScreen'
 import {
-  applyHitResult,
+  addTimeToDeadline,
+  CORRECT_TIME_BONUS_MS,
+  createGameDeadline,
+  getRemainingTime,
+  HIT_FEEDBACK_MS,
+  INITIAL_GAME_TIME_MS,
+  ROUND_LIFETIME_MS,
+  TIMER_REFRESH_MS,
+  type ClockSource,
+} from './gameTimer'
+import {
+  applyRoundResult,
   createInitialGameStats,
+  type GameResult,
   type GameStats,
 } from './gameStats'
 
-const HIT_FEEDBACK_MS = 400
+type TimerHandleRef = { current: number | null }
 
-type HitFeedback = {
+type RoundFeedback = {
+  type: Extract<GameResult, 'correct' | 'incorrect'>
   selectedTargetId: string
-  correct: boolean
+} | {
+  type: 'miss'
 } | null
 
+type RoundOutcome =
+  | { type: 'correct'; selectedTargetId: string }
+  | { type: 'incorrect'; selectedTargetId: string }
+  | { type: 'miss' }
+
 export type GamePhase = 'playing' | 'game-over'
+export type GameOverReason = 'lives' | 'time'
 
 export interface GameScreenProps {
   createRound?: () => GameRound
+  clock?: ClockSource
+}
+
+const clearTimeoutRef = (timerRef: TimerHandleRef): void => {
+  if (timerRef.current !== null) {
+    window.clearTimeout(timerRef.current)
+    timerRef.current = null
+  }
+}
+
+const clearIntervalRef = (timerRef: TimerHandleRef): void => {
+  if (timerRef.current !== null) {
+    window.clearInterval(timerRef.current)
+    timerRef.current = null
+  }
 }
 
 const getTargetVisualState = (
   target: GameTarget,
-  feedback: HitFeedback,
+  feedback: RoundFeedback,
 ): TargetVisualState => {
   if (!feedback) {
     return 'idle'
   }
 
-  if (target.id === feedback.selectedTargetId) {
-    return feedback.correct ? 'correct' : 'incorrect'
+  if (
+    feedback.type !== 'miss' &&
+    target.id === feedback.selectedTargetId
+  ) {
+    return feedback.type === 'correct' ? 'correct' : 'incorrect'
   }
 
-  if (!feedback.correct && isCorrectTarget(target)) {
+  if (feedback.type !== 'correct' && isCorrectTarget(target)) {
     return 'correct-answer'
   }
 
@@ -51,66 +95,401 @@ const getTargetVisualState = (
 
 export const GameScreen = ({
   createRound = createGameRound,
+  clock = Date.now,
 }: GameScreenProps): ReactElement => {
   const [round, setRound] = useState<GameRound>(() => createRound())
-  const [feedback, setFeedback] = useState<HitFeedback>(null)
+  const [feedback, setFeedback] = useState<RoundFeedback>(null)
   const [stats, setStats] = useState<GameStats>(createInitialGameStats)
   const [phase, setPhase] = useState<GamePhase>('playing')
-  const transitionTimeoutRef = useRef<number | null>(null)
-
-  useEffect(
-    () => () => {
-      if (transitionTimeoutRef.current !== null) {
-        window.clearTimeout(transitionTimeoutRef.current)
-      }
-    },
-    [],
+  const [gameOverReason, setGameOverReason] =
+    useState<GameOverReason | null>(null)
+  const [initialGameDeadline] = useState(() =>
+    createGameDeadline(clock(), INITIAL_GAME_TIME_MS),
+  )
+  const [remainingTimeMs, setRemainingTimeMs] = useState(() =>
+    getRemainingTime(initialGameDeadline, clock()),
   )
 
-  const handleTargetHit = (target: GameTarget): void => {
-    if (
-      phase !== 'playing' ||
-      feedback !== null ||
-      transitionTimeoutRef.current !== null
-    ) {
-      return
-    }
+  const clockRef = useRef<ClockSource>(clock)
+  const gameDeadlineRef = useRef(initialGameDeadline)
+  const roundRef = useRef(round)
+  const feedbackRef = useRef<RoundFeedback>(null)
+  const statsRef = useRef(stats)
+  const phaseRef = useRef<GamePhase>('playing')
+  const gameOverReasonRef = useRef<GameOverReason | null>(null)
+  const globalExpiredRef = useRef(false)
+  const roundIdRef = useRef(0)
+  const roundDeadlineRef = useRef(0)
+  const isRoundResolvedRef = useRef(false)
 
-    const correct = isCorrectTarget(target)
-    const nextStats = applyHitResult(stats, correct)
+  const transitionTimeoutRef = useRef<number | null>(null)
+  const roundExpiryTimeoutRef = useRef<number | null>(null)
+  const globalExpiryTimeoutRef = useRef<number | null>(null)
+  const globalRefreshIntervalRef = useRef<number | null>(null)
+  const roundExpiryHandlerRef = useRef<(roundId: number) => void>(() => {})
 
-    setStats(nextStats)
-    setFeedback({ selectedTargetId: target.id, correct })
+  const clearTransition = useCallback(() => {
+    clearTimeoutRef(transitionTimeoutRef)
+  }, [])
 
-    transitionTimeoutRef.current = window.setTimeout(() => {
-      transitionTimeoutRef.current = null
-      setFeedback(null)
+  const clearRoundExpiry = useCallback(() => {
+    clearTimeoutRef(roundExpiryTimeoutRef)
+  }, [])
 
-      if (nextStats.lives === 0) {
-        setPhase('game-over')
+  const clearGlobalExpiry = useCallback(() => {
+    clearTimeoutRef(globalExpiryTimeoutRef)
+  }, [])
+
+  const finishGame = useCallback(
+    (reason: GameOverReason): void => {
+      if (phaseRef.current === 'game-over') {
         return
       }
 
-      setRound(createRound())
-    }, HIT_FEEDBACK_MS)
-  }
+      phaseRef.current = 'game-over'
+      gameOverReasonRef.current = reason
+      clearRoundExpiry()
+      clearGlobalExpiry()
+      clearIntervalRef(globalRefreshIntervalRef)
+      setPhase('game-over')
+      setGameOverReason(reason)
+    },
+    [clearGlobalExpiry, clearRoundExpiry],
+  )
 
-  const handleRestart = (): void => {
-    if (transitionTimeoutRef.current !== null) {
-      window.clearTimeout(transitionTimeoutRef.current)
-      transitionTimeoutRef.current = null
+  const refreshGlobalTimer = useCallback((): void => {
+    if (phaseRef.current === 'game-over') {
+      return
     }
 
-    setRound(createRound())
-    setStats(createInitialGameStats())
+    const remaining = getRemainingTime(
+      gameDeadlineRef.current,
+      clockRef.current(),
+    )
+    setRemainingTimeMs(remaining)
+
+    if (remaining === 0) {
+      globalExpiredRef.current = true
+
+      if (feedbackRef.current === null) {
+        finishGame('time')
+      }
+    }
+  }, [finishGame])
+
+  const scheduleGlobalExpiry = useCallback((): void => {
+    clearGlobalExpiry()
+
+    const remaining = getRemainingTime(
+      gameDeadlineRef.current,
+      clockRef.current(),
+    )
+
+    globalExpiryTimeoutRef.current = window.setTimeout(() => {
+      globalExpiryTimeoutRef.current = null
+      refreshGlobalTimer()
+    }, remaining)
+  }, [clearGlobalExpiry, refreshGlobalTimer])
+
+  const startGlobalRefresh = useCallback((): void => {
+    clearIntervalRef(globalRefreshIntervalRef)
+    globalRefreshIntervalRef.current = window.setInterval(
+      refreshGlobalTimer,
+      TIMER_REFRESH_MS,
+    )
+  }, [refreshGlobalTimer])
+
+  const scheduleRoundExpiry = useCallback(
+    (roundId: number, deadline: number): void => {
+      clearRoundExpiry()
+
+      const remaining = getRemainingTime(deadline, clockRef.current())
+      roundExpiryTimeoutRef.current = window.setTimeout(() => {
+        roundExpiryTimeoutRef.current = null
+        roundExpiryHandlerRef.current(roundId)
+      }, remaining)
+    },
+    [clearRoundExpiry],
+  )
+
+  const startNextRound = useCallback((): void => {
+    if (phaseRef.current !== 'playing') {
+      return
+    }
+
+    const roundStart = clockRef.current()
+    const remaining = getRemainingTime(gameDeadlineRef.current, roundStart)
+    setRemainingTimeMs(remaining)
+
+    if (remaining === 0) {
+      globalExpiredRef.current = true
+      finishGame('time')
+      return
+    }
+
+    const nextRound = createRound()
+    const nextRoundId = roundIdRef.current + 1
+    const nextRoundDeadline = createGameDeadline(
+      clockRef.current(),
+      ROUND_LIFETIME_MS,
+    )
+
+    roundIdRef.current = nextRoundId
+    roundDeadlineRef.current = nextRoundDeadline
+    isRoundResolvedRef.current = false
+    roundRef.current = nextRound
+    feedbackRef.current = null
+    setRound(nextRound)
+    setFeedback(null)
+    scheduleRoundExpiry(nextRoundId, nextRoundDeadline)
+  }, [createRound, finishGame, scheduleRoundExpiry])
+
+  const resolveRound = useCallback(
+    (outcome: RoundOutcome, expectedRoundId: number): void => {
+      if (
+        phaseRef.current !== 'playing' ||
+        feedbackRef.current !== null ||
+        isRoundResolvedRef.current ||
+        roundIdRef.current !== expectedRoundId
+      ) {
+        return
+      }
+
+      isRoundResolvedRef.current = true
+      clearRoundExpiry()
+
+      const nextStats = applyRoundResult(statsRef.current, outcome.type)
+      const nextFeedback: RoundFeedback =
+        outcome.type === 'miss'
+          ? { type: 'miss' }
+          : {
+              type: outcome.type,
+              selectedTargetId: outcome.selectedTargetId,
+            }
+
+      statsRef.current = nextStats
+      feedbackRef.current = nextFeedback
+      setStats(nextStats)
+      setFeedback(nextFeedback)
+
+      if (outcome.type === 'correct') {
+        gameDeadlineRef.current = addTimeToDeadline(
+          gameDeadlineRef.current,
+          CORRECT_TIME_BONUS_MS,
+        )
+        globalExpiredRef.current = false
+        refreshGlobalTimer()
+        scheduleGlobalExpiry()
+      }
+
+      transitionTimeoutRef.current = window.setTimeout(() => {
+        transitionTimeoutRef.current = null
+        feedbackRef.current = null
+        setFeedback(null)
+
+        if (phaseRef.current !== 'playing') {
+          return
+        }
+
+        if (nextStats.lives === 0) {
+          finishGame('lives')
+          return
+        }
+
+        const remaining = getRemainingTime(
+          gameDeadlineRef.current,
+          clockRef.current(),
+        )
+        setRemainingTimeMs(remaining)
+
+        if (globalExpiredRef.current || remaining === 0) {
+          globalExpiredRef.current = true
+          finishGame('time')
+          return
+        }
+
+        startNextRound()
+      }, HIT_FEEDBACK_MS)
+    },
+    [
+      clearRoundExpiry,
+      finishGame,
+      refreshGlobalTimer,
+      scheduleGlobalExpiry,
+      startNextRound,
+    ],
+  )
+
+  const handleRoundExpiry = useCallback(
+    (expectedRoundId: number): void => {
+      if (
+        phaseRef.current !== 'playing' ||
+        feedbackRef.current !== null ||
+        isRoundResolvedRef.current ||
+        roundIdRef.current !== expectedRoundId
+      ) {
+        return
+      }
+
+      const remaining = getRemainingTime(
+        gameDeadlineRef.current,
+        clockRef.current(),
+      )
+      setRemainingTimeMs(remaining)
+
+      if (remaining === 0) {
+        globalExpiredRef.current = true
+        finishGame('time')
+        return
+      }
+
+      resolveRound({ type: 'miss' }, expectedRoundId)
+    },
+    [finishGame, resolveRound],
+  )
+
+  const handleTargetHit = useCallback(
+    (target: GameTarget): void => {
+      if (
+        phaseRef.current !== 'playing' ||
+        feedbackRef.current !== null ||
+        isRoundResolvedRef.current ||
+        !roundRef.current.targets.some(
+          (currentTarget) => currentTarget.id === target.id,
+        )
+      ) {
+        return
+      }
+
+      const now = clockRef.current()
+      const remaining = getRemainingTime(
+        gameDeadlineRef.current,
+        now,
+      )
+      setRemainingTimeMs(remaining)
+
+      if (remaining === 0) {
+        globalExpiredRef.current = true
+        finishGame('time')
+        return
+      }
+
+      if (getRemainingTime(roundDeadlineRef.current, now) === 0) {
+        resolveRound({ type: 'miss' }, roundIdRef.current)
+        return
+      }
+
+      const outcome: RoundOutcome = isCorrectTarget(target)
+        ? { type: 'correct', selectedTargetId: target.id }
+        : { type: 'incorrect', selectedTargetId: target.id }
+
+      resolveRound(outcome, roundIdRef.current)
+    },
+    [finishGame, resolveRound],
+  )
+
+  const handleRestart = useCallback((): void => {
+    clearTransition()
+    clearRoundExpiry()
+    clearGlobalExpiry()
+
+    const freshRound = createRound()
+    const freshDeadline = createGameDeadline(
+      clockRef.current(),
+      INITIAL_GAME_TIME_MS,
+    )
+    const freshRoundId = roundIdRef.current + 1
+    const freshRoundDeadline = createGameDeadline(
+      clockRef.current(),
+      ROUND_LIFETIME_MS,
+    )
+
+    gameDeadlineRef.current = freshDeadline
+    roundDeadlineRef.current = freshRoundDeadline
+    roundIdRef.current = freshRoundId
+    globalExpiredRef.current = false
+    isRoundResolvedRef.current = false
+    phaseRef.current = 'playing'
+    gameOverReasonRef.current = null
+    roundRef.current = freshRound
+    feedbackRef.current = null
+    statsRef.current = createInitialGameStats()
+
+    setRound(freshRound)
+    setStats(statsRef.current)
     setFeedback(null)
     setPhase('playing')
-  }
+    setGameOverReason(null)
+    setRemainingTimeMs(
+      getRemainingTime(freshDeadline, clockRef.current()),
+    )
+
+    startGlobalRefresh()
+    scheduleRoundExpiry(freshRoundId, freshRoundDeadline)
+    scheduleGlobalExpiry()
+  }, [
+    clearGlobalExpiry,
+    clearRoundExpiry,
+    clearTransition,
+    createRound,
+    scheduleGlobalExpiry,
+    scheduleRoundExpiry,
+    startGlobalRefresh,
+  ])
+
+  useEffect(() => {
+    clockRef.current = clock
+  }, [clock])
+
+  useEffect(() => {
+    roundExpiryHandlerRef.current = handleRoundExpiry
+  }, [handleRoundExpiry])
+
+  useEffect(() => {
+    globalExpiredRef.current = false
+    roundIdRef.current = 1
+    isRoundResolvedRef.current = false
+    roundDeadlineRef.current = createGameDeadline(
+      clockRef.current(),
+      ROUND_LIFETIME_MS,
+    )
+
+    startGlobalRefresh()
+    scheduleGlobalExpiry()
+    scheduleRoundExpiry(1, roundDeadlineRef.current)
+    refreshGlobalTimer()
+
+    const handleVisibilityChange = (): void => {
+      refreshGlobalTimer()
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      clearTransition()
+      clearRoundExpiry()
+      clearGlobalExpiry()
+      clearIntervalRef(globalRefreshIntervalRef)
+      roundIdRef.current += 1
+      isRoundResolvedRef.current = true
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [
+    clearGlobalExpiry,
+    clearRoundExpiry,
+    clearTransition,
+    refreshGlobalTimer,
+    scheduleGlobalExpiry,
+    scheduleRoundExpiry,
+    startGlobalRefresh,
+  ])
 
   const feedbackMessage = feedback
-    ? feedback.correct
+    ? feedback.type === 'correct'
       ? 'Correct!'
-      : `Not quite — ${round.prompt.pitch.note}`
+      : feedback.type === 'incorrect'
+        ? `Not quite — ${round.prompt.pitch.note}`
+        : `Too slow — ${round.prompt.pitch.note}`
     : ''
   const targetsBySlot = new Map(round.targets.map((target) => [target.slot, target]))
 
@@ -126,11 +505,12 @@ export const GameScreen = ({
         <GameOverScreen
           score={stats.score}
           bestStreak={stats.bestStreak}
+          reason={gameOverReason ?? 'time'}
           onRestart={handleRestart}
         />
       ) : (
         <>
-          <GameHud stats={stats} />
+          <GameHud stats={stats} remainingTimeMs={remainingTimeMs} />
 
           <div className="game-prompt">
             <MusicStaff
@@ -163,7 +543,7 @@ export const GameScreen = ({
           </div>
 
           <p
-            className={`game-feedback${feedback ? ` game-feedback--${feedback.correct ? 'correct' : 'incorrect'}` : ''}`}
+            className={`game-feedback${feedback ? ` game-feedback--${feedback.type}` : ''}`}
             role="status"
             aria-live="polite"
             aria-atomic="true"

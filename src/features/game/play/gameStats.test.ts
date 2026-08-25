@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   applyHitResult,
+  applyRoundResult,
   createInitialGameStats,
   INITIAL_LIVES,
 } from './gameStats'
@@ -48,6 +49,20 @@ describe('game stats', () => {
       applyHitResult(
         { score: 330, streak: 3, bestStreak: 3, lives: 3 },
         false,
+      ),
+    ).toEqual({
+      score: 330,
+      streak: 0,
+      bestStreak: 3,
+      lives: 2,
+    })
+  })
+
+  it('treats a missed round as a distinct life-losing result', () => {
+    expect(
+      applyRoundResult(
+        { score: 330, streak: 3, bestStreak: 3, lives: 3 },
+        'miss',
       ),
     ).toEqual({
       score: 330,

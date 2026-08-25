@@ -99,7 +99,7 @@ h1 {
 
 .game-hud {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.5rem;
   margin-top: 1.25rem;
   padding: 0.65rem 0.5rem;
@@ -140,6 +140,34 @@ h1 {
   letter-spacing: 0.08em;
 }
 
+.game-stat--time {
+  position: relative;
+}
+
+.game-stat--time-urgent {
+  color: var(--danger-text);
+}
+
+.game-stat--time-urgent .game-stat-value {
+  font-weight: 900;
+  animation: timer-pulse 900ms ease-in-out infinite alternate;
+}
+
+.timer-urgency {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.35rem;
+  display: grid;
+  width: 1.05rem;
+  height: 1.05rem;
+  color: var(--surface);
+  font-size: 0.75rem;
+  font-weight: 900;
+  place-items: center;
+  background: var(--danger);
+  border-radius: 50%;
+}
+
 .game-over {
   margin-top: 1.5rem;
   padding: 1.25rem 0.75rem;
@@ -157,6 +185,12 @@ h1 {
   margin: 0;
   font-size: clamp(1.75rem, 8vw, 2.5rem);
   line-height: 1.05;
+}
+
+.game-over-reason {
+  margin: 0.65rem 0 0;
+  color: var(--danger-text);
+  font-weight: 800;
 }
 
 .game-over-stats {
@@ -270,6 +304,7 @@ h1 {
   cursor: pointer;
   isolation: isolate;
   touch-action: manipulation;
+  animation: target-pop 180ms ease-out both;
   transition: transform 120ms ease, filter 120ms ease;
 }
 
@@ -414,6 +449,10 @@ h1 {
   color: var(--danger-text);
 }
 
+.game-feedback--miss {
+  color: var(--danger-text);
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -426,8 +465,39 @@ h1 {
   border: 0;
 }
 
+@keyframes target-pop {
+  from {
+    opacity: 0;
+    transform: translateY(0.45rem) scale(0.9);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes timer-pulse {
+  from {
+    opacity: 0.78;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 22.5rem) {
+  .game-hud {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 0.7rem;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .target-button {
+  .target-button,
+  .game-stat--time-urgent .game-stat-value {
+    animation: none;
     transition: none;
   }
 }

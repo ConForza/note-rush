@@ -2,6 +2,8 @@ export const INITIAL_LIVES = 3
 export const CORRECT_HIT_BASE_SCORE = 100
 export const STREAK_SCORE_BONUS = 10
 
+export type GameResult = 'correct' | 'incorrect' | 'miss'
+
 export interface GameStats {
   readonly score: number
   readonly streak: number
@@ -16,11 +18,11 @@ export const createInitialGameStats = (): GameStats => ({
   lives: INITIAL_LIVES,
 })
 
-export const applyHitResult = (
+export const applyRoundResult = (
   stats: GameStats,
-  correct: boolean,
+  result: GameResult,
 ): GameStats => {
-  if (correct) {
+  if (result === 'correct') {
     const nextStreak = stats.streak + 1
     const scoreGained =
       CORRECT_HIT_BASE_SCORE + STREAK_SCORE_BONUS * stats.streak
@@ -40,3 +42,8 @@ export const applyHitResult = (
     lives: Math.max(0, stats.lives - 1),
   }
 }
+
+export const applyHitResult = (
+  stats: GameStats,
+  correct: boolean,
+): GameStats => applyRoundResult(stats, correct ? 'correct' : 'incorrect')

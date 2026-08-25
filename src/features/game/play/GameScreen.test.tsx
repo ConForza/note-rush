@@ -459,6 +459,30 @@ describe('GameScreen', () => {
     expect(screen.getByRole('button', { name: 'Hit A' })).toHaveFocus()
   })
 
+  it('restores keyboard focus after an Arcade round times out automatically', () => {
+    renderReady(
+      <GameScreen
+        createRound={vi
+          .fn<() => GameRound>()
+          .mockReturnValueOnce(firstRound)
+          .mockReturnValueOnce(secondRound)}
+      />,
+    )
+
+    const board = screen.getByRole('group', { name: 'Note targets' })
+    const focusedTarget = screen.getByRole('button', { name: 'Hit C' })
+    focusedTarget.focus()
+    fireEvent.keyDown(board, { key: 'Enter' })
+
+    act(() => {
+      vi.advanceTimersByTime(3_000)
+    })
+    expect(screen.getByRole('status')).toHaveTextContent('Too slow — C')
+
+    advanceHit()
+    expect(screen.getByRole('button', { name: 'Hit A' })).toHaveFocus()
+  })
+
   it('does not steal pointer focus when the next round becomes ready', () => {
     renderReady(
       <GameScreen
@@ -905,12 +929,20 @@ describe('GameScreen', () => {
       />,
     )
 
+    const board = screen.getByRole('group', { name: 'Note targets' })
+    const focusedTarget = screen.getByRole('button', { name: 'Hit C' })
+    focusedTarget.focus()
+    fireEvent.keyDown(board, { key: 'Enter' })
+
     now = 3_000
     fireEvent(document, new Event('visibilitychange'))
 
     expect(screen.getByRole('status')).toHaveTextContent('Too slow — C')
     expect(effects.emit).toHaveBeenCalledTimes(1)
     expect(effects.emit).toHaveBeenCalledWith('miss')
+
+    advanceHit()
+    expect(screen.getByRole('button', { name: 'Hit D' })).toHaveFocus()
   })
 
   it('shows miss feedback before game over when the final life expires', () => {

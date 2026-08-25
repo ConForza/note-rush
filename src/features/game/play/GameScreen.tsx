@@ -500,6 +500,13 @@ export const GameScreen = ({
         return
       }
 
+      if (
+        keyboardInteractionRef.current &&
+        targetBoardRef.current?.contains(document.activeElement)
+      ) {
+        restoreTargetFocusRef.current = true
+      }
+
       isRoundResolvedRef.current = true
       clearRoundReady()
       clearRoundExpiry()
@@ -648,13 +655,6 @@ export const GameScreen = ({
       ) {
         resolveRound({ type: 'miss' }, roundIdRef.current)
         return
-      }
-
-      if (
-        keyboardInteractionRef.current &&
-        targetBoardRef.current?.contains(document.activeElement)
-      ) {
-        restoreTargetFocusRef.current = true
       }
 
       const outcome: RoundOutcome = isCorrectTarget(target)

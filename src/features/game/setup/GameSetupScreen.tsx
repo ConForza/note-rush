@@ -1,44 +1,50 @@
-import { useState, type ReactElement } from 'react'
+import { type ReactElement } from 'react'
+import { type EffectPreferences } from '../effects'
+import { type GamePreferences } from '../preferences'
 import {
-  DEFAULT_ARCADE_CONFIG,
-  DEFAULT_PRACTICE_CONFIG,
   DIFFICULTY_STAGES,
   getStageRangeLabel,
   SESSION_TIMER_OPTIONS,
   type GameSessionConfig,
-  type DifficultyStageId,
   type SessionTimerSeconds,
 } from '../session'
 import { WhackNoteMark } from '../play/WhackNoteMark'
 
 export interface GameSetupScreenProps {
-  onStart: (config: GameSessionConfig) => void
+  preferences: GamePreferences
+  onPreferencesChange: (preferences: GamePreferences) => void
+  onStart: (
+    config: GameSessionConfig,
+    feedbackPreferences: EffectPreferences,
+  ) => void
 }
 
 const getTimerLabel = (timerSeconds: SessionTimerSeconds): string =>
   timerSeconds === null ? 'Off' : `${timerSeconds} sec`
 
 export const GameSetupScreen = ({
+  preferences,
+  onPreferencesChange,
   onStart,
 }: GameSetupScreenProps): ReactElement => {
-  const [mode, setMode] = useState<'arcade' | 'practice'>('arcade')
-  const [timerSeconds, setTimerSeconds] = useState<SessionTimerSeconds>(
-    DEFAULT_ARCADE_CONFIG.timerSeconds,
-  )
-  const [stageId, setStageId] = useState<DifficultyStageId>(
-    DEFAULT_PRACTICE_CONFIG.stageId,
-  )
+  const mode = preferences.lastMode
+  const timerSeconds: SessionTimerSeconds =
+    mode === 'practice'
+      ? preferences.practiceTimerSeconds
+      : preferences.arcadeTimerSeconds
+  const stageId = preferences.practiceStageId
 
   const handleModeChange = (nextMode: 'arcade' | 'practice'): void => {
-    setMode(nextMode)
-    setTimerSeconds(
-      nextMode === 'practice'
-        ? DEFAULT_PRACTICE_CONFIG.timerSeconds
-        : DEFAULT_ARCADE_CONFIG.timerSeconds,
-    )
-    if (nextMode === 'practice') {
-      setStageId(DEFAULT_PRACTICE_CONFIG.stageId)
-    }
+    onPreferencesChange({ ...preferences, lastMode: nextMode })
+  }
+
+  const handleTimerChange = (nextTimer: SessionTimerSeconds): void => {
+    onPreferencesChange({
+      ...preferences,
+      ...(mode === 'practice'
+        ? { practiceTimerSeconds: nextTimer }
+        : { arcadeTimerSeconds: nextTimer }),
+    })
   }
 
   const selectedConfig: GameSessionConfig =
@@ -61,7 +67,10 @@ export const GameSetupScreen = ({
         className="setup-form"
         onSubmit={(event) => {
           event.preventDefault()
-          onStart(selectedConfig)
+          onStart(selectedConfig, {
+            soundEnabled: preferences.soundEnabled,
+            hapticsEnabled: preferences.hapticsEnabled,
+          })
         }}
       >
         <fieldset className="setup-fieldset">
@@ -108,7 +117,12 @@ export const GameSetupScreen = ({
                   <input
                     checked={stageId === stage.id}
                     name="stage"
-                    onChange={() => setStageId(stage.id)}
+                    onChange={() =>
+                      onPreferencesChange({
+                        ...preferences,
+                        practiceStageId: stage.id,
+                      })
+                    }
                     type="radio"
                     value={stage.id}
                   />
@@ -130,13 +144,51 @@ export const GameSetupScreen = ({
                 <input
                   checked={timerSeconds === option}
                   name="timer"
-                  onChange={() => setTimerSeconds(option)}
+                  onChange={() => handleTimerChange(option)}
                   type="radio"
                   value={String(option)}
                 />
                 <span>{getTimerLabel(option)}</span>
               </label>
             ))}
+          </div>
+        </fieldset>
+
+        <fieldset className="setup-fieldset feedback-fieldset">
+          <legend>Game feedback</legend>
+          <div className="feedback-options">
+            <label className="feedback-toggle">
+              <input
+                checked={preferences.soundEnabled}
+                onChange={(event) =>
+                  onPreferencesChange({
+                    ...preferences,
+                    soundEnabled: event.currentTarget.checked,
+                  })
+                }
+                type="checkbox"
+              />
+              <span>
+                <strong>Sound</strong>
+                <small>Short outcome cues</small>
+              </span>
+            </label>
+            <label className="feedback-toggle">
+              <input
+                checked={preferences.hapticsEnabled}
+                onChange={(event) =>
+                  onPreferencesChange({
+                    ...preferences,
+                    hapticsEnabled: event.currentTarget.checked,
+                  })
+                }
+                type="checkbox"
+              />
+              <span>
+                <strong>Haptics</strong>
+                <small>Subtle vibration</small>
+              </span>
+            </label>
           </div>
         </fieldset>
 

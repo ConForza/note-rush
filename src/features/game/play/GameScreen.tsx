@@ -58,6 +58,11 @@ import {
   getSessionTimerMs,
   type GameSessionConfig,
 } from '../session'
+import {
+  NOOP_GAME_EFFECTS,
+  type GameEffects,
+  type GameFeedbackEvent,
+} from '../effects'
 
 type TimerHandleRef = { current: number | null }
 
@@ -88,6 +93,7 @@ export interface GameScreenProps {
   presentationRandom?: RandomSource
   sessionConfig?: GameSessionConfig
   onExit?: () => void
+  effects?: GameEffects
 }
 
 const clearTimeoutRef = (timerRef: TimerHandleRef): void => {
@@ -136,6 +142,7 @@ export const GameScreen = ({
   presentationRandom = Math.random,
   sessionConfig = DEFAULT_ARCADE_CONFIG,
   onExit,
+  effects = NOOP_GAME_EFFECTS,
 }: GameScreenProps): ReactElement => {
   const sessionRules = getSessionRules(sessionConfig)
   const initialStageIndex =
@@ -213,6 +220,17 @@ export const GameScreen = ({
     clearTimeoutRef(globalExpiryTimeoutRef)
   }, [])
 
+  const emitEffect = useCallback(
+    (event: GameFeedbackEvent): void => {
+      try {
+        effects.emit(event)
+      } catch {
+        // Optional feedback must never affect authoritative gameplay.
+      }
+    },
+    [effects],
+  )
+
   const getGlobalEffectiveNow = useCallback(
     (): number => globalPauseStartedRef.current ?? clockRef.current(),
     [],
@@ -240,6 +258,11 @@ export const GameScreen = ({
       phaseRef.current = 'game-over'
       gameOverReasonRef.current = reason
       globalPauseStartedRef.current = null
+      emitEffect(
+        sessionConfig.mode === 'practice'
+          ? 'practice-complete'
+          : 'game-over',
+      )
       clearRoundReady()
       clearRoundExpiry()
       clearGlobalExpiry()
@@ -247,7 +270,13 @@ export const GameScreen = ({
       setPhase('game-over')
       setGameOverReason(reason)
     },
-    [clearGlobalExpiry, clearRoundExpiry, clearRoundReady],
+    [
+      clearGlobalExpiry,
+      clearRoundExpiry,
+      clearRoundReady,
+      emitEffect,
+      sessionConfig.mode,
+    ],
   )
 
   const refreshGlobalTimer = useCallback((): void => {
@@ -471,6 +500,13 @@ export const GameScreen = ({
       feedbackRef.current = nextFeedback
       setStats(nextStats)
       setFeedback(nextFeedback)
+      emitEffect(
+        outcome.type === 'correct'
+          ? progressUpdate.advanced
+            ? 'level-up'
+            : 'correct'
+          : outcome.type,
+      )
 
       if (
         outcome.type === 'correct' &&
@@ -521,6 +557,7 @@ export const GameScreen = ({
       finishGame,
       getGlobalRemainingTime,
       pauseGlobalTimer,
+      emitEffect,
       sessionRules.usesCorrectTimeBonus,
       sessionRules.usesLives,
       sessionRules.usesProgression,

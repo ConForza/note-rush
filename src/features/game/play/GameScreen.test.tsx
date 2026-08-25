@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { cloneElement, type ReactElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { type NotePrompt } from '../domain'
+import { type GameEffects } from '../effects'
 import { GameScreen } from './GameScreen'
 import { type DifficultyStage } from './gameDifficulty'
 import { type GameRound, type GameTarget } from './gameRound'
@@ -75,6 +76,13 @@ const renderReady = (ui: Parameters<typeof render>[0]) => {
   advanceRoundStart()
   return result
 }
+
+const createFakeEffects = (): GameEffects => ({
+  unlockAudio: vi.fn(),
+  emit: vi.fn(),
+  configure: vi.fn(),
+  dispose: vi.fn(),
+})
 
 const advanceHit = (): void => {
   act(() => {
@@ -334,6 +342,151 @@ describe('GameScreen', () => {
     expect(getStatValue('Streak')).toBe('1')
     expect(screen.getByRole('status')).toHaveTextContent('Correct!')
     expect(screen.queryByText('3 lives remaining')).not.toBeInTheDocument()
+  })
+
+  it('emits exactly one correct effect after an authoritative hit', () => {
+    const effects = createFakeEffects()
+    renderReady(
+      <GameScreen
+        createRound={() => firstRound}
+        effects={effects}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Hit C, correct' }))
+
+    expect(effects.emit).toHaveBeenCalledTimes(1)
+    expect(effects.emit).toHaveBeenCalledWith('correct')
+  })
+
+  it('emits no effect for a pre-ready click', () => {
+    const effects = createFakeEffects()
+    render(
+      <GameScreen
+        createRound={() => firstRound}
+        effects={effects}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
+
+    expect(effects.emit).not.toHaveBeenCalled()
+  })
+
+  it('maps a missed Arcade round to one miss effect', () => {
+    const effects = createFakeEffects()
+    renderReady(
+      <GameScreen
+        createRound={() => firstRound}
+        effects={effects}
+      />,
+    )
+
+    act(() => {
+      vi.advanceTimersByTime(3_000)
+    })
+
+    expect(effects.emit).toHaveBeenCalledWith('miss')
+    expect(effects.emit).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses one level-up effect instead of correct on advancement', () => {
+    const effects = createFakeEffects()
+    renderReady(
+      <GameScreen
+        createRound={() => firstRound}
+        effects={effects}
+      />,
+    )
+
+    for (let index = 0; index < 4; index += 1) {
+      fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
+      advanceHit()
+    }
+
+    expect(effects.emit).toHaveBeenCalledTimes(4)
+    expect(vi.mocked(effects.emit).mock.calls.map(([event]) => event)).toEqual([
+      'correct',
+      'correct',
+      'correct',
+      'level-up',
+    ])
+  })
+
+  it('keeps Practice correct effects free of progression and miss events', () => {
+    const effects = createFakeEffects()
+    renderReady(
+      <GameScreen
+        createRound={() => firstRound}
+        effects={effects}
+        sessionConfig={{
+          mode: 'practice',
+          stageId: 'mixed-clefs',
+          timerSeconds: null,
+        }}
+      />,
+    )
+
+    act(() => {
+      vi.advanceTimersByTime(10_000)
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
+
+    expect(effects.emit).toHaveBeenCalledTimes(1)
+    expect(effects.emit).toHaveBeenCalledWith('correct')
+    expect(effects.emit).not.toHaveBeenCalledWith('level-up')
+    expect(effects.emit).not.toHaveBeenCalledWith('miss')
+  })
+
+  it('emits incorrect once, then game-over once at the final Arcade life', () => {
+    const effects = createFakeEffects()
+    renderReady(
+      <GameScreen
+        createRound={() => firstRound}
+        effects={effects}
+      />,
+    )
+
+    for (let index = 0; index < 3; index += 1) {
+      fireEvent.click(screen.getByRole('button', { name: 'Hit D' }))
+      advanceHit()
+    }
+
+    expect(effects.emit).toHaveBeenCalledTimes(4)
+    expect(effects.emit).toHaveBeenNthCalledWith(1, 'incorrect')
+    expect(effects.emit).toHaveBeenNthCalledWith(2, 'incorrect')
+    expect(effects.emit).toHaveBeenNthCalledWith(3, 'incorrect')
+    expect(effects.emit).toHaveBeenNthCalledWith(4, 'game-over')
+  })
+
+  it('emits Practice Complete once when a timed Practice session expires', () => {
+    let now = 0
+    const effects = createFakeEffects()
+    const clock = (): number => now
+
+    renderReady(
+      <GameScreen
+        clock={clock}
+        createRound={() => firstRound}
+        effects={effects}
+        sessionConfig={{
+          mode: 'practice',
+          stageId: 'treble-basics',
+          timerSeconds: 30,
+        }}
+      />,
+    )
+
+    now = 30_000
+    act(() => {
+      vi.advanceTimersByTime(100)
+    })
+
+    expect(effects.emit).toHaveBeenCalledTimes(1)
+    expect(effects.emit).toHaveBeenCalledWith('practice-complete')
+    expect(effects.emit).not.toHaveBeenCalledWith('miss')
+    expect(effects.emit).not.toHaveBeenCalledWith('game-over')
   })
 
   it.each([60, 120] as const)('shows the configured Arcade timer (%s seconds)', (seconds) => {

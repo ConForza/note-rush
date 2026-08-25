@@ -52,6 +52,8 @@ export const MusicStaff = ({
       throw new Error('VexFlow did not create an SVG renderer output.')
     }
 
+    svg.setAttribute('aria-hidden', 'true')
+    svg.setAttribute('focusable', 'false')
     svg.style.width = '100%'
     svg.style.height = '100%'
 

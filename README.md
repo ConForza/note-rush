@@ -28,8 +28,9 @@ npm run preview
 ```
 
 The service worker is disabled during normal Vite development. Production
-updates use a prompt-style service worker lifecycle, so a new build is picked
-up on a later load rather than forcing a refresh during an active round. Asset
+updates use a deferred service-worker lifecycle, so a new build is picked up on
+a later load rather than forcing a refresh during an active round. There is no
+in-game update prompt. Asset
 URLs use a relative Vite base, which keeps the manifest, icons, and worker
 paths compatible with root hosting and GitHub Pages repository subpaths.
 

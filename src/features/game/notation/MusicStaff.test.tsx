@@ -73,6 +73,15 @@ describe('MusicStaff', () => {
     expect(countRenderedSvgs(container)).toBe(1)
   })
 
+  it('hides the generated notation SVG behind its accessible staff label', () => {
+    const { container } = render(
+      <MusicStaff prompt={prompt('C', 4, 'treble')} />,
+    )
+
+    expect(container.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+    expect(container.querySelector('svg')).toHaveAttribute('focusable', 'false')
+  })
+
   it('exposes an accessible prompt label for treble', () => {
     render(<MusicStaff prompt={prompt('C', 4, 'treble')} />)
 

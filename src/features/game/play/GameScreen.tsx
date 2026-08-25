@@ -234,6 +234,25 @@ export const GameScreen = ({
   }, [focusGameHeading])
 
   useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Tab' || event.key === 'Enter' || event.key === ' ') {
+        keyboardInteractionRef.current = true
+      }
+    }
+    const handlePointerDown = (): void => {
+      keyboardInteractionRef.current = false
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    document.addEventListener('pointerdown', handlePointerDown)
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('pointerdown', handlePointerDown)
+    }
+  }, [])
+
+  useEffect(() => {
     if (!roundReady || !restoreTargetFocusRef.current) {
       return
     }
@@ -884,14 +903,6 @@ export const GameScreen = ({
               className="target-board"
               role="group"
               aria-label="Note targets"
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  keyboardInteractionRef.current = true
-                }
-              }}
-              onPointerDown={() => {
-                keyboardInteractionRef.current = false
-              }}
             >
               {GAME_BOARD_SLOTS.map((slot) => {
                 const target = targetsBySlot.get(slot)

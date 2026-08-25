@@ -483,6 +483,28 @@ describe('GameScreen', () => {
     expect(screen.getByRole('button', { name: 'Hit A' })).toHaveFocus()
   })
 
+  it('recognizes keyboard focus reached without activating a target', () => {
+    renderReady(
+      <GameScreen
+        createRound={vi
+          .fn<() => GameRound>()
+          .mockReturnValueOnce(firstRound)
+          .mockReturnValueOnce(secondRound)}
+      />,
+    )
+
+    const focusedTarget = screen.getByRole('button', { name: 'Hit C' })
+    fireEvent.keyDown(document, { key: 'Tab' })
+    focusedTarget.focus()
+
+    act(() => {
+      vi.advanceTimersByTime(3_000)
+    })
+    advanceHit()
+
+    expect(screen.getByRole('button', { name: 'Hit A' })).toHaveFocus()
+  })
+
   it('does not steal pointer focus when the next round becomes ready', () => {
     renderReady(
       <GameScreen
@@ -858,6 +880,86 @@ describe('GameScreen', () => {
     expect(getStatValue('Time')).toBe('29')
   })
 
+  it('preserves the final 200ms after an incorrect answer and feedback', () => {
+    let now = 29_800
+    let initialClockCalls = 0
+    const clock = (): number => {
+      initialClockCalls += 1
+      return initialClockCalls <= 2 ? 0 : now
+    }
+    renderReady(<GameScreen createRound={() => firstRound} clock={clock} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hit D' }))
+    expect(getStatValue('Time')).toBe('1')
+
+    advanceHit()
+    expect(screen.queryByRole('heading', { name: 'Game Over' })).not.toBeInTheDocument()
+
+    now = 29_999
+    act(() => {
+      vi.advanceTimersByTime(199)
+    })
+    expect(screen.queryByRole('heading', { name: 'Game Over' })).not.toBeInTheDocument()
+
+    now = 30_000
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    expect(screen.getByRole('heading', { name: 'Game Over' })).toBeInTheDocument()
+  })
+
+  it('preserves the final 1200ms after a correct answer receives its bonus', () => {
+    let now = 29_800
+    let initialClockCalls = 0
+    const clock = (): number => {
+      initialClockCalls += 1
+      return initialClockCalls <= 2 ? 0 : now
+    }
+    renderReady(<GameScreen createRound={() => firstRound} clock={clock} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
+    expect(getStatValue('Time')).toBe('2')
+
+    advanceHit()
+    expect(screen.queryByRole('heading', { name: 'Game Over' })).not.toBeInTheDocument()
+
+    now = 30_999
+    act(() => {
+      vi.advanceTimersByTime(1_199)
+    })
+    expect(screen.queryByRole('heading', { name: 'Game Over' })).not.toBeInTheDocument()
+
+    now = 31_000
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    expect(screen.getByRole('heading', { name: 'Game Over' })).toBeInTheDocument()
+  })
+
+  it('uses the configured Level 4 three-second deadline at the exact boundary', () => {
+    const createRound = vi.fn((stage: DifficultyStage): GameRound => ({
+      ...firstRound,
+      prompt: { ...firstRound.prompt, clef: stage.level >= 4 ? 'bass' : 'treble' },
+    }))
+    renderReady(<GameScreen createRound={createRound} />)
+
+    for (let index = 0; index < 12; index += 1) {
+      fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
+      advanceHit()
+    }
+
+    expect(screen.getByText('Bass Basics')).toBeInTheDocument()
+    act(() => {
+      vi.advanceTimersByTime(2_999)
+    })
+    expect(screen.getByRole('status')).not.toHaveTextContent('Too slow')
+
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    expect(screen.getByRole('status')).toHaveTextContent('Too slow — C')
+  })
+
   it('resolves an expired round as a miss and reveals the correct target', () => {
     const createRound = vi.fn(() => firstRound)
     renderReady(<GameScreen createRound={createRound} />)
@@ -984,6 +1086,50 @@ describe('GameScreen', () => {
     expect(screen.getByRole('heading', { name: 'Game Over' })).toBeInTheDocument()
     expect(screen.getByText("Time's up")).toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'Note targets' })).not.toBeInTheDocument()
+  })
+
+  it('lets global expiry win over a stale target hit', () => {
+    let now = 0
+    const clock = (): number => now
+    const effects = createFakeEffects()
+    renderReady(
+      <GameScreen
+        clock={clock}
+        createRound={() => firstRound}
+        effects={effects}
+      />,
+    )
+
+    now = 30_000
+    fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
+
+    expect(screen.getByRole('heading', { name: 'Game Over' })).toBeInTheDocument()
+    expect(screen.getByText('Final score').nextElementSibling).toHaveTextContent('0')
+    expect(effects.emit).toHaveBeenCalledTimes(1)
+    expect(effects.emit).toHaveBeenCalledWith('game-over')
+    expect(effects.emit).not.toHaveBeenCalledWith('correct')
+    expect(effects.emit).not.toHaveBeenCalledWith('miss')
+  })
+
+  it('lets global visibility expiry win over a round miss', () => {
+    let now = 0
+    const clock = (): number => now
+    const effects = createFakeEffects()
+    renderReady(
+      <GameScreen
+        clock={clock}
+        createRound={() => firstRound}
+        effects={effects}
+      />,
+    )
+
+    now = 30_000
+    fireEvent(document, new Event('visibilitychange'))
+
+    expect(screen.getByRole('heading', { name: 'Game Over' })).toBeInTheDocument()
+    expect(effects.emit).toHaveBeenCalledTimes(1)
+    expect(effects.emit).toHaveBeenCalledWith('game-over')
+    expect(effects.emit).not.toHaveBeenCalledWith('miss')
   })
 
   it('keeps global time paused through feedback and the next anticipation', () => {

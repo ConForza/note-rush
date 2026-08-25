@@ -135,6 +135,7 @@ select {
 .timer-option {
   position: relative;
   display: flex;
+  min-height: 2.75rem;
   align-items: flex-start;
   gap: 0.7rem;
   padding: 0.75rem;
@@ -142,6 +143,7 @@ select {
   border: 1px solid rgb(28 94 96 / 18%);
   border-radius: 0.75rem;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .mode-card:hover,
@@ -229,6 +231,7 @@ select {
   border: 1px solid rgb(28 94 96 / 18%);
   border-radius: 0.75rem;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .feedback-toggle:has(input:checked) {
@@ -295,7 +298,7 @@ select {
 
 .exit-button {
   display: block;
-  min-height: 2.25rem;
+  min-height: 2.75rem;
   margin: 0.75rem auto 0;
   padding: 0.45rem 0.8rem;
   font-size: 0.8rem;
@@ -487,11 +490,9 @@ h1 {
 .difficulty-label {
   min-width: 0;
   margin-top: 0.12rem;
-  overflow: hidden;
+  overflow-wrap: anywhere;
   font-size: 0.95rem;
   line-height: 1.1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .difficulty-progress {
@@ -543,6 +544,14 @@ h1 {
 .game-stat--time-urgent .game-stat-value {
   font-weight: 900;
   animation: timer-pulse 900ms ease-in-out infinite alternate;
+}
+
+h1:focus-visible,
+h2:focus-visible,
+button:focus-visible,
+input:focus-visible {
+  outline: 3px solid var(--game-accent);
+  outline-offset: 3px;
 }
 
 .timer-urgency {
@@ -787,6 +796,10 @@ h1 {
   .timer-options {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .difficulty-progress {
+    white-space: normal;
+  }
 }
 
 @media (max-width: 42rem) {
@@ -810,7 +823,85 @@ h1 {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+
   .game-stat--time-urgent .game-stat-value {
     animation: none;
+    text-decoration: underline 0.15rem;
+    text-underline-offset: 0.2rem;
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .mode-card:hover:not(.mode-card--selected),
+  .stage-card:hover:not(.stage-card--selected),
+  .timer-option:hover:not(.timer-option--selected) {
+    border-color: rgb(28 94 96 / 18%);
+  }
+
+  .setup-start-button:hover,
+  .exit-button:hover {
+    filter: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .mode-card,
+  .stage-card,
+  .timer-option,
+  .feedback-toggle {
+    color: CanvasText;
+    background: Canvas;
+    border-color: ButtonText;
+  }
+
+  .mode-card--selected,
+  .stage-card--selected,
+  .timer-option--selected,
+  .feedback-toggle:has(input:checked) {
+    color: CanvasText;
+    background: Canvas;
+    border: 2px solid Highlight;
+    outline: 1px solid Highlight;
+  }
+
+  .timer-option::after {
+    width: 0.85rem;
+    height: 0.85rem;
+    flex: 0 0 auto;
+    content: '';
+    border: 2px solid ButtonText;
+    border-radius: 50%;
+  }
+
+  .timer-option--selected::after {
+    background: Highlight;
+    box-shadow: inset 0 0 0 0.18rem Canvas;
+  }
+
+  .setup-start-button,
+  .exit-button,
+  .restart-button {
+    color: ButtonText;
+    background: ButtonFace;
+    border-color: ButtonText;
+  }
+
+  .game-hud {
+    color: Canvas;
+    background: CanvasText;
+  }
+
+  .target-button:focus-visible,
+  button:focus-visible,
+  input:focus-visible {
+    outline-color: Highlight;
   }
 }

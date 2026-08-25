@@ -23,6 +23,7 @@ function App() {
     loadGamePreferences(),
   )
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null)
+  const [focusSetupHeading, setFocusSetupHeading] = useState(false)
 
   const handlePreferencesChange = useCallback(
     (nextPreferences: GamePreferences): void => {
@@ -36,10 +37,16 @@ function App() {
     (config: GameSessionConfig, feedbackPreferences: EffectPreferences): void => {
       const effects = createGameEffects(feedbackPreferences)
       effects.unlockAudio()
+      setFocusSetupHeading(false)
       setActiveSession({ config, effects })
     },
     [],
   )
+
+  const handleExit = useCallback((): void => {
+    setActiveSession(null)
+    setFocusSetupHeading(true)
+  }, [])
 
   useEffect(
     () => () => {
@@ -52,6 +59,7 @@ function App() {
     <main className="app-shell">
       {activeSession === null ? (
         <GameSetupScreen
+          focusHeading={focusSetupHeading}
           onPreferencesChange={handlePreferencesChange}
           onStart={handleStart}
           preferences={preferences}
@@ -59,7 +67,7 @@ function App() {
       ) : (
         <GameScreen
           effects={activeSession.effects}
-          onExit={() => setActiveSession(null)}
+          onExit={handleExit}
           sessionConfig={activeSession.config}
         />
       )}

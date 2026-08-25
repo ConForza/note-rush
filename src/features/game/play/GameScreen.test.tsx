@@ -439,6 +439,46 @@ describe('GameScreen', () => {
     expect(effects.emit).not.toHaveBeenCalledWith('miss')
   })
 
+  it('restores keyboard focus to the first active target after the next round is ready', () => {
+    renderReady(
+      <GameScreen
+        createRound={vi
+          .fn<() => GameRound>()
+          .mockReturnValueOnce(firstRound)
+          .mockReturnValueOnce(secondRound)}
+      />,
+    )
+
+    const board = screen.getByRole('group', { name: 'Note targets' })
+    const correctTarget = screen.getByRole('button', { name: 'Hit C' })
+    correctTarget.focus()
+    fireEvent.keyDown(board, { key: 'Enter' })
+    fireEvent.click(correctTarget)
+
+    advanceHit()
+    expect(screen.getByRole('button', { name: 'Hit A' })).toHaveFocus()
+  })
+
+  it('does not steal pointer focus when the next round becomes ready', () => {
+    renderReady(
+      <GameScreen
+        createRound={vi
+          .fn<() => GameRound>()
+          .mockReturnValueOnce(firstRound)
+          .mockReturnValueOnce(secondRound)}
+      />,
+    )
+
+    const correctTarget = screen.getByRole('button', { name: 'Hit C' })
+    correctTarget.focus()
+    fireEvent.pointerDown(correctTarget)
+    fireEvent.click(correctTarget)
+
+    advanceHit()
+    advanceRoundStart()
+    expect(screen.getByRole('button', { name: 'Hit A' })).not.toHaveFocus()
+  })
+
   it('emits incorrect once, then game-over once at the final Arcade life', () => {
     const effects = createFakeEffects()
     renderReady(
@@ -557,6 +597,7 @@ describe('GameScreen', () => {
     })
 
     expect(screen.getByRole('heading', { name: 'Practice Complete' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Practice Complete' })).toHaveFocus()
     expect(screen.getByText(/Nice work/)).toBeInTheDocument()
     expect(screen.queryByText('Too slow')).not.toBeInTheDocument()
   })
@@ -851,6 +892,27 @@ describe('GameScreen', () => {
     expect(getStatValue('Score')).toBe('0')
   })
 
+  it('reconciles an expired round when visibility changes', () => {
+    let now = 0
+    const clock = (): number => now
+    const effects = createFakeEffects()
+
+    renderReady(
+      <GameScreen
+        clock={clock}
+        createRound={() => firstRound}
+        effects={effects}
+      />,
+    )
+
+    now = 3_000
+    fireEvent(document, new Event('visibilitychange'))
+
+    expect(screen.getByRole('status')).toHaveTextContent('Too slow — C')
+    expect(effects.emit).toHaveBeenCalledTimes(1)
+    expect(effects.emit).toHaveBeenCalledWith('miss')
+  })
+
   it('shows miss feedback before game over when the final life expires', () => {
     const createRound = vi.fn(() => firstRound)
     renderReady(<GameScreen createRound={createRound} />)
@@ -872,6 +934,7 @@ describe('GameScreen', () => {
     })
 
     expect(screen.getByRole('heading', { name: 'Game Over' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Game Over' })).toHaveFocus()
     expect(screen.getByText('Out of lives')).toBeInTheDocument()
     expect(createRound).toHaveBeenCalledTimes(3)
   })
@@ -1178,7 +1241,7 @@ describe('GameScreen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Play Again' }))
 
     expect(createRound).toHaveBeenCalledTimes(4)
-    expect(screen.getByRole('heading', { name: 'Whack-a-Note' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Whack-a-Note' })).toHaveFocus()
     expect(getStatValue('Score')).toBe('0')
     expect(getStatValue('Streak')).toBe('0')
     expect(screen.getByText('3 lives remaining')).toBeInTheDocument()

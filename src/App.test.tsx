@@ -41,4 +41,14 @@ describe('Whack-a-Note application', () => {
     expect(screen.getByRole('checkbox', { name: /Haptics/ })).not.toBeChecked()
     expect(screen.getByRole('button', { name: 'Start Practice' })).toBeInTheDocument()
   })
+
+  it('moves focus between setup and gameplay headings at the session boundary', () => {
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start Game' }))
+    expect(screen.getByRole('heading', { name: 'Whack-a-Note' })).toHaveFocus()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Change Setup' }))
+    expect(screen.getByRole('heading', { name: 'Whack-a-Note' })).toHaveFocus()
+  })
 })

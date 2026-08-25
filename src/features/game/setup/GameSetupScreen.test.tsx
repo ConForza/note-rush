@@ -82,4 +82,17 @@ describe('GameSetupScreen', () => {
     expect(screen.getByRole('checkbox', { name: /Sound/ })).not.toBeChecked()
     expect(screen.getByRole('checkbox', { name: /Haptics/ })).not.toBeChecked()
   })
+
+  it('focuses the setup heading when returning from gameplay', () => {
+    render(
+      <GameSetupScreen
+        focusHeading
+        onPreferencesChange={vi.fn()}
+        onStart={vi.fn()}
+        preferences={DEFAULT_GAME_PREFERENCES}
+      />,
+    )
+
+    expect(screen.getByRole('heading', { name: 'Whack-a-Note' })).toHaveFocus()
+  })
 })

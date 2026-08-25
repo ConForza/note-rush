@@ -332,3 +332,9 @@
     transform: translateY(1.7rem);
   }
 }
+
+@media (hover: none), (pointer: coarse) {
+  .target-button:hover:not(:disabled) .target-art {
+    transform: none;
+  }
+}

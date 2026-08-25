@@ -1,4 +1,4 @@
-import { type ReactElement } from 'react'
+import { useEffect, useRef, type ReactElement } from 'react'
 import { type EffectPreferences } from '../effects'
 import { type GamePreferences } from '../preferences'
 import {
@@ -9,8 +9,10 @@ import {
   type SessionTimerSeconds,
 } from '../session'
 import { WhackNoteMark } from '../play/WhackNoteMark'
+import { focusWithoutScroll } from '../play/focus'
 
 export interface GameSetupScreenProps {
+  focusHeading?: boolean
   preferences: GamePreferences
   onPreferencesChange: (preferences: GamePreferences) => void
   onStart: (
@@ -23,10 +25,19 @@ const getTimerLabel = (timerSeconds: SessionTimerSeconds): string =>
   timerSeconds === null ? 'Off' : `${timerSeconds} sec`
 
 export const GameSetupScreen = ({
+  focusHeading = false,
   preferences,
   onPreferencesChange,
   onStart,
 }: GameSetupScreenProps): ReactElement => {
+  const headingRef = useRef<HTMLHeadingElement>(null)
+
+  useEffect(() => {
+    if (focusHeading) {
+      focusWithoutScroll(headingRef.current)
+    }
+  }, [focusHeading])
+
   const mode = preferences.lastMode
   const timerSeconds: SessionTimerSeconds =
     mode === 'practice'
@@ -59,7 +70,9 @@ export const GameSetupScreen = ({
           <WhackNoteMark />
           <p className="eyebrow">Music note arcade</p>
         </div>
-        <h1 id="setup-title">Whack-a-Note</h1>
+        <h1 ref={headingRef} id="setup-title" tabIndex={-1}>
+          Whack-a-Note
+        </h1>
         <p className="subtitle">Choose how you want to play</p>
       </header>
 

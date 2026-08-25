@@ -63,6 +63,7 @@ import {
   type GameEffects,
   type GameFeedbackEvent,
 } from '../effects'
+import { focusWithoutScroll } from './focus'
 
 type TimerHandleRef = { current: number | null }
 
@@ -203,6 +204,10 @@ export const GameScreen = ({
   const globalExpiryTimeoutRef = useRef<number | null>(null)
   const globalRefreshIntervalRef = useRef<number | null>(null)
   const roundExpiryHandlerRef = useRef<(roundId: number) => void>(() => {})
+  const gameHeadingRef = useRef<HTMLHeadingElement>(null)
+  const targetBoardRef = useRef<HTMLDivElement>(null)
+  const keyboardInteractionRef = useRef(false)
+  const restoreTargetFocusRef = useRef(false)
 
   const clearTransition = useCallback(() => {
     clearTimeoutRef(transitionTimeoutRef)
@@ -219,6 +224,29 @@ export const GameScreen = ({
   const clearGlobalExpiry = useCallback(() => {
     clearTimeoutRef(globalExpiryTimeoutRef)
   }, [])
+
+  const focusGameHeading = useCallback((): void => {
+    focusWithoutScroll(gameHeadingRef.current)
+  }, [])
+
+  useEffect(() => {
+    focusGameHeading()
+  }, [focusGameHeading])
+
+  useEffect(() => {
+    if (!roundReady || !restoreTargetFocusRef.current) {
+      return
+    }
+
+    const firstActiveTarget = targetBoardRef.current?.querySelector<HTMLButtonElement>(
+      '.target-button:not(:disabled)',
+    )
+
+    if (firstActiveTarget) {
+      focusWithoutScroll(firstActiveTarget)
+      restoreTargetFocusRef.current = false
+    }
+  }, [roundReady, targetAnimationKey])
 
   const emitEffect = useCallback(
     (event: GameFeedbackEvent): void => {
@@ -622,6 +650,13 @@ export const GameScreen = ({
         return
       }
 
+      if (
+        keyboardInteractionRef.current &&
+        targetBoardRef.current?.contains(document.activeElement)
+      ) {
+        restoreTargetFocusRef.current = true
+      }
+
       const outcome: RoundOutcome = isCorrectTarget(target)
         ? { type: 'correct', selectedTargetId: target.id }
         : { type: 'incorrect', selectedTargetId: target.id }
@@ -635,6 +670,30 @@ export const GameScreen = ({
       sessionRules.usesRoundDeadline,
     ],
   )
+
+  const reconcileVisibility = useCallback((): void => {
+    if (phaseRef.current === 'game-over') {
+      return
+    }
+
+    refreshGlobalTimer()
+
+    if (
+      phaseRef.current !== 'playing' ||
+      feedbackRef.current !== null ||
+      isRoundResolvedRef.current ||
+      !roundReadyRef.current
+    ) {
+      return
+    }
+
+    if (
+      sessionRules.usesRoundDeadline &&
+      getRemainingTime(roundDeadlineRef.current, clockRef.current()) === 0
+    ) {
+      resolveRound({ type: 'miss' }, roundIdRef.current)
+    }
+  }, [refreshGlobalTimer, resolveRound, sessionRules.usesRoundDeadline])
 
   const handleRestart = useCallback((): void => {
     clearTransition()
@@ -664,6 +723,8 @@ export const GameScreen = ({
     setRoundReady(false)
     roundDeadlineRef.current = 0
     globalExpiredRef.current = false
+    keyboardInteractionRef.current = false
+    restoreTargetFocusRef.current = false
     isRoundResolvedRef.current = false
     progressRef.current = freshProgress
     phaseRef.current = 'playing'
@@ -685,6 +746,7 @@ export const GameScreen = ({
         ? null
         : getRemainingTime(freshDeadline, clockRef.current()),
     )
+    focusGameHeading()
 
     startRoundPresentation(freshRoundId, freshStage, freshEmergenceSchedule)
   }, [
@@ -693,6 +755,7 @@ export const GameScreen = ({
     clearRoundReady,
     clearTransition,
     createRound,
+    focusGameHeading,
     initialStageIndex,
     presentationRandom,
     sessionConfig,
@@ -722,7 +785,7 @@ export const GameScreen = ({
     refreshGlobalTimer()
 
     const handleVisibilityChange = (): void => {
-      refreshGlobalTimer()
+      reconcileVisibility()
     }
 
     document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -743,6 +806,7 @@ export const GameScreen = ({
     clearRoundReady,
     clearTransition,
     pauseGlobalTimer,
+    reconcileVisibility,
     refreshGlobalTimer,
     sessionConfig,
     startRoundPresentation,
@@ -774,7 +838,9 @@ export const GameScreen = ({
           <WhackNoteMark />
           <p className="eyebrow">Music note arcade</p>
         </div>
-        <h1 id="game-title">Whack-a-Note</h1>
+        <h1 ref={gameHeadingRef} id="game-title" tabIndex={-1}>
+          Whack-a-Note
+        </h1>
         <p className="subtitle">Find the matching note</p>
       </header>
 
@@ -813,7 +879,20 @@ export const GameScreen = ({
           <p className="prompt-instruction">Which note?</p>
 
           <div className="target-board-shell">
-            <div className="target-board" role="group" aria-label="Note targets">
+            <div
+              ref={targetBoardRef}
+              className="target-board"
+              role="group"
+              aria-label="Note targets"
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  keyboardInteractionRef.current = true
+                }
+              }}
+              onPointerDown={() => {
+                keyboardInteractionRef.current = false
+              }}
+            >
               {GAME_BOARD_SLOTS.map((slot) => {
                 const target = targetsBySlot.get(slot)
 

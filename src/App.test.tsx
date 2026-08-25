@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import App from './App'
 
 describe('Note Rush application', () => {
-  it('identifies the project on the placeholder screen', () => {
+  it('renders the playable game identity', () => {
     render(<App />)
 
     expect(

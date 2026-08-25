@@ -49,6 +49,22 @@ describe('MusicStaff', () => {
     ).toBeInTheDocument()
   })
 
+  it('uses an explicit accessible label override when supplied', () => {
+    render(
+      <MusicStaff
+        prompt={prompt('C', 4, 'treble')}
+        ariaLabel="Note to identify on treble clef"
+      />,
+    )
+
+    expect(
+      screen.getByRole('img', { name: 'Note to identify on treble clef' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('img', { name: 'C4 on treble clef' }),
+    ).not.toBeInTheDocument()
+  })
+
   it('replaces the previous SVG when the pitch changes', () => {
     const { container, rerender } = render(
       <MusicStaff prompt={prompt('C', 4, 'treble')} />,

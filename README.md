@@ -26,4 +26,4 @@ npm run build
 
 ## Current project status
 
-The React application foundation, framework-independent note domain engine, and music-staff renderer are implemented. Gameplay has not yet been added.
+Note Rush now includes the application foundation, note domain engine, VexFlow staff renderer, and a playable treble-clef note-identification loop. Scoring, progression, game modes, and polish are still to come.

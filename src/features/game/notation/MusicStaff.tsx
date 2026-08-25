@@ -20,15 +20,18 @@ const STAVE_WIDTH = 324
 
 export interface MusicStaffProps {
   prompt: NotePrompt
+  ariaLabel?: string
   className?: string
 }
 
 export const MusicStaff = ({
   prompt,
+  ariaLabel,
   className,
 }: MusicStaffProps): ReactElement => {
   const containerRef = useRef<HTMLDivElement>(null)
-  const accessibleLabel = `${formatPitch(prompt.pitch)} on ${prompt.clef} clef`
+  const accessibleLabel =
+    ariaLabel ?? `${formatPitch(prompt.pitch)} on ${prompt.clef} clef`
 
   useLayoutEffect(() => {
     const container = containerRef.current

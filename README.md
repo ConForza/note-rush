@@ -1,6 +1,6 @@
-# Note Rush
+# Whack-a-Note
 
-Note Rush is a mobile-first music note-reading game built with React and TypeScript.
+Whack-a-Note is a mobile-first music note-reading game built with React and TypeScript.
 
 ## Requirements
 
@@ -26,4 +26,4 @@ npm run build
 
 ## Current project status
 
-Note Rush now includes a playable mobile whack-a-mole-style treble note-identification loop using dynamically generated correct and decoy targets. Scoring, lives, timing, progression, custom graphics, audio, and persistence are still to come.
+Whack-a-Note now includes a mobile whack-a-mole-style treble note-identification loop with dynamically generated targets, score, streak, lives, game over, and restart flow. Timer, progression, custom graphics, audio, and persistence are still to come.

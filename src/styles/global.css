@@ -97,6 +97,115 @@ h1 {
   font-size: 1rem;
 }
 
+.game-hud {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+  padding: 0.65rem 0.5rem;
+  background: var(--background);
+  border: 1px solid rgb(29 35 44 / 8%);
+  border-radius: 0.75rem;
+}
+
+.game-stat {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.game-stat-label {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.game-stat-value,
+.life-hearts {
+  min-height: 1.5rem;
+  margin-top: 0.2rem;
+  font-size: 1.1rem;
+  font-weight: 800;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+
+.life-hearts {
+  color: var(--danger);
+  letter-spacing: 0.08em;
+}
+
+.game-over {
+  margin-top: 1.5rem;
+  padding: 1.25rem 0.75rem;
+  text-align: center;
+  background: var(--background);
+  border: 1px solid rgb(29 35 44 / 8%);
+  border-radius: 0.85rem;
+}
+
+.game-over .eyebrow {
+  margin-bottom: 0.5rem;
+}
+
+.game-over h2 {
+  margin: 0;
+  font-size: clamp(1.75rem, 8vw, 2.5rem);
+  line-height: 1.05;
+}
+
+.game-over-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 1.5rem 0;
+}
+
+.game-over-stats dt {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.game-over-stats dd {
+  margin: 0.35rem 0 0;
+  color: var(--text);
+  font-size: 1.75rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.restart-button {
+  width: min(100%, 15rem);
+  min-height: 3rem;
+  padding: 0.65rem 1rem;
+  color: var(--surface);
+  font-size: 1rem;
+  font-weight: 800;
+  background: var(--accent);
+  border: 2px solid var(--accent);
+  border-radius: 0.75rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.restart-button:hover {
+  filter: brightness(1.08);
+}
+
+.restart-button:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
 .game-prompt {
   margin-top: 1.5rem;
 }

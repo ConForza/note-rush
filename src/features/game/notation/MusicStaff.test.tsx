@@ -43,6 +43,19 @@ const getRenderedStaveSpan = (container: HTMLElement): { start: number; end: num
   }
 }
 
+const getRenderedStaveVerticalCenter = (container: HTMLElement): number => {
+  const lineYs = [...container.querySelectorAll('.vf-stave path')]
+    .map((path) => path.getAttribute('d'))
+    .map((path) => path?.match(/^M\s*[\d.-]+\s*([\d.-]+)L\s*[\d.-]+\s*([\d.-]+)/))
+    .flatMap((coordinates) => (coordinates ? [Number(coordinates[1])] : []))
+
+  if (lineYs.length === 0) {
+    throw new Error('Expected the rendered stave to expose horizontal line coordinates')
+  }
+
+  return (lineYs[0] + lineYs.at(-1)!) / 2
+}
+
 describe('MusicStaff', () => {
   it('renders a treble prompt as SVG', () => {
     const { container } = render(
@@ -161,8 +174,10 @@ describe('MusicStaff', () => {
 
     expect(staveWidth).toBeLessThan(220)
     expect(stave.start).toBeGreaterThan(50)
-    expect(stave.end).toBeLessThan(310)
-    expect(staveCenter).toBeGreaterThan(165)
-    expect(staveCenter).toBeLessThan(195)
+    expect(stave.end).toBeLessThan(270)
+    expect(staveCenter).toBeGreaterThan(145)
+    expect(staveCenter).toBeLessThan(175)
+    expect(getRenderedStaveVerticalCenter(container)).toBeGreaterThan(70)
+    expect(getRenderedStaveVerticalCenter(container)).toBeLessThan(90)
   })
 })

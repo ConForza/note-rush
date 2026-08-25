@@ -577,7 +577,10 @@ export const GameScreen = ({
         return
       }
 
-      if (getRemainingTime(roundDeadlineRef.current, now) === 0) {
+      if (
+        sessionRules.usesRoundDeadline &&
+        getRemainingTime(roundDeadlineRef.current, now) === 0
+      ) {
         resolveRound({ type: 'miss' }, roundIdRef.current)
         return
       }
@@ -588,7 +591,12 @@ export const GameScreen = ({
 
       resolveRound(outcome, roundIdRef.current)
     },
-    [finishGame, getGlobalRemainingTime, resolveRound],
+    [
+      finishGame,
+      getGlobalRemainingTime,
+      resolveRound,
+      sessionRules.usesRoundDeadline,
+    ],
   )
 
   const handleRestart = useCallback((): void => {

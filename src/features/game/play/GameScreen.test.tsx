@@ -327,6 +327,13 @@ describe('GameScreen', () => {
     expect(screen.getByRole('button', { name: 'Hit C' })).toBeEnabled()
     expect(screen.getByRole('status')).not.toHaveTextContent('Too slow')
     expect(screen.getByText('Practice')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
+
+    expect(getStatValue('Score')).toBe('100')
+    expect(getStatValue('Streak')).toBe('1')
+    expect(screen.getByRole('status')).toHaveTextContent('Correct!')
+    expect(screen.queryByText('3 lives remaining')).not.toBeInTheDocument()
   })
 
   it.each([60, 120] as const)('shows the configured Arcade timer (%s seconds)', (seconds) => {
@@ -354,7 +361,7 @@ describe('GameScreen', () => {
     expect(screen.getByText('2 lives remaining')).toBeInTheDocument()
   })
 
-  it('does not award the Arcade time bonus in timed Practice', () => {
+  it('allows a timed Practice hit after the question lifetime without a bonus', () => {
     let now = 0
     const clock = (): number => now
 
@@ -366,10 +373,17 @@ describe('GameScreen', () => {
       />,
     )
 
-    now = 5_000
+    now = 4_000
+    act(() => {
+      vi.advanceTimersByTime(4_000)
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
 
-    expect(getStatValue('Time')).toBe('25')
+    expect(getStatValue('Score')).toBe('100')
+    expect(getStatValue('Streak')).toBe('1')
+    expect(getStatValue('Time')).toBe('26')
+    expect(screen.getByRole('status')).toHaveTextContent('Correct!')
+    expect(screen.queryByText('Too slow')).not.toBeInTheDocument()
   })
 
   it('ends timed Practice positively when the session timer expires', () => {

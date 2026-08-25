@@ -1,9 +1,12 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
+import { cloneElement, type ReactElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { type NotePrompt } from '../domain'
-import { GameScreen, ROUND_READY_DELAY_MAX_MS } from './GameScreen'
+import { GameScreen } from './GameScreen'
 import { type DifficultyStage } from './gameDifficulty'
 import { type GameRound, type GameTarget } from './gameRound'
+
+const DETERMINISTIC_READY_DELAY_MS = 180 + 2 * 60 + 280
 
 const prompt = (
   note: NotePrompt['pitch']['note'],
@@ -59,19 +62,23 @@ const getStatValue = (label: string): string => {
 
 const advanceRoundStart = (): void => {
   act(() => {
-    vi.advanceTimersByTime(ROUND_READY_DELAY_MAX_MS)
+    vi.advanceTimersByTime(DETERMINISTIC_READY_DELAY_MS)
   })
 }
 
 const renderReady = (ui: Parameters<typeof render>[0]) => {
-  const result = render(ui)
+  const deterministicUi = cloneElement(
+    ui as ReactElement<{ presentationRandom?: () => number }>,
+    { presentationRandom: () => 0 },
+  )
+  const result = render(deterministicUi)
   advanceRoundStart()
   return result
 }
 
 const advanceHit = (): void => {
   act(() => {
-    vi.advanceTimersByTime(400 + ROUND_READY_DELAY_MAX_MS)
+    vi.advanceTimersByTime(400 + DETERMINISTIC_READY_DELAY_MS)
   })
 }
 
@@ -83,6 +90,8 @@ describe('GameScreen', () => {
 
   afterEach(() => {
     vi.clearAllTimers()
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
     vi.useRealTimers()
   })
 
@@ -111,7 +120,12 @@ describe('GameScreen', () => {
   })
 
   it('holds the global clock through anticipation and feedback', () => {
-    render(<GameScreen createRound={() => firstRound} />)
+    render(
+      <GameScreen
+        createRound={() => firstRound}
+        presentationRandom={() => 0}
+      />,
+    )
 
     act(() => {
       vi.advanceTimersByTime(500)
@@ -119,7 +133,7 @@ describe('GameScreen', () => {
     expect(getStatValue('Time')).toBe('30')
 
     act(() => {
-      vi.advanceTimersByTime(160)
+      vi.advanceTimersByTime(80)
     })
     expect(getStatValue('Time')).toBe('30')
 
@@ -134,7 +148,12 @@ describe('GameScreen', () => {
 
   it('starts the round deadline only after the emergence boundary', () => {
     const createRound = vi.fn(() => firstRound)
-    render(<GameScreen createRound={createRound} />)
+    render(
+      <GameScreen
+        createRound={createRound}
+        presentationRandom={() => 0}
+      />,
+    )
 
     act(() => {
       vi.advanceTimersByTime(3_000)
@@ -142,9 +161,97 @@ describe('GameScreen', () => {
     expect(screen.getByRole('status')).not.toHaveTextContent('Too slow')
 
     act(() => {
-      vi.advanceTimersByTime(ROUND_READY_DELAY_MAX_MS)
+      vi.advanceTimersByTime(DETERMINISTIC_READY_DELAY_MS)
     })
     expect(screen.getByRole('status')).toHaveTextContent('Too slow — C')
+  })
+
+  it('keeps every target disabled and ignores pre-ready hits', () => {
+    render(
+      <GameScreen
+        createRound={() => firstRound}
+        presentationRandom={() => 0}
+      />,
+    )
+
+    screen.getAllByRole('button').forEach((button) => {
+      expect(button).toBeDisabled()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
+
+    expect(getStatValue('Score')).toBe('0')
+    expect(getStatValue('Streak')).toBe('0')
+    expect(screen.getByText('3 lives remaining')).toBeInTheDocument()
+    expect(screen.getByRole('status')).not.toHaveTextContent(/Correct|Not quite|Too slow/)
+
+    act(() => {
+      vi.advanceTimersByTime(DETERMINISTIC_READY_DELAY_MS - 1)
+    })
+    screen.getAllByRole('button').forEach((button) => {
+      expect(button).toBeDisabled()
+    })
+
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    screen.getAllByRole('button').forEach((button) => {
+      expect(button).toBeEnabled()
+    })
+  })
+
+  it('starts the response deadline exactly at readiness', () => {
+    render(
+      <GameScreen
+        createRound={() => firstRound}
+        presentationRandom={() => 0}
+      />,
+    )
+
+    act(() => {
+      vi.advanceTimersByTime(DETERMINISTIC_READY_DELAY_MS - 1)
+    })
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+
+    act(() => {
+      vi.advanceTimersByTime(2_999)
+    })
+    expect(screen.getByRole('status')).not.toHaveTextContent('Too slow')
+
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    expect(screen.getByRole('status')).toHaveTextContent('Too slow — C')
+  })
+
+  it('makes the initial round immediately ready under reduced motion', () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn(
+        () =>
+          ({
+            matches: true,
+            media: '(prefers-reduced-motion: reduce)',
+            onchange: null,
+            addListener: vi.fn(),
+            removeListener: vi.fn(),
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+            dispatchEvent: vi.fn(),
+          }) as unknown as MediaQueryList,
+      ),
+    )
+
+    render(<GameScreen createRound={() => firstRound} />)
+    act(() => {
+      vi.advanceTimersByTime(0)
+    })
+
+    screen.getAllByRole('button').forEach((button) => {
+      expect(button).toBeEnabled()
+      expect(button).toHaveStyle('--target-emergence-delay: 0ms')
+    })
   })
 
   it('updates score, streak, and leaves lives unchanged on a correct hit', () => {
@@ -415,6 +522,11 @@ describe('GameScreen', () => {
       vi.advanceTimersByTime(1)
     })
     expect(createRound).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole('button', { name: 'Hit C' })).toBeDisabled()
+
+    act(() => {
+      vi.advanceTimersByTime(DETERMINISTIC_READY_DELAY_MS)
+    })
     expect(screen.getByRole('button', { name: 'Hit C' })).toBeEnabled()
     expect(screen.getByRole('status')).not.toHaveTextContent('Too slow')
   })
@@ -438,9 +550,9 @@ describe('GameScreen', () => {
 
     act(() => {
       vi.advanceTimersByTime(3_000)
-      vi.advanceTimersByTime(400 + ROUND_READY_DELAY_MAX_MS)
+      vi.advanceTimersByTime(400 + DETERMINISTIC_READY_DELAY_MS)
       vi.advanceTimersByTime(3_000)
-      vi.advanceTimersByTime(400 + ROUND_READY_DELAY_MAX_MS)
+      vi.advanceTimersByTime(400 + DETERMINISTIC_READY_DELAY_MS)
       vi.advanceTimersByTime(3_000)
     })
 
@@ -472,7 +584,7 @@ describe('GameScreen', () => {
     expect(screen.queryByRole('group', { name: 'Note targets' })).not.toBeInTheDocument()
   })
 
-  it('finishes after feedback when global time expires during a resolution', () => {
+  it('keeps global time paused through feedback and the next anticipation', () => {
     let now = 0
     const clock = (): number => now
     const createRound = vi.fn(() => firstRound)
@@ -493,9 +605,15 @@ describe('GameScreen', () => {
       vi.advanceTimersByTime(300)
     })
 
-    expect(screen.getByRole('heading', { name: 'Game Over' })).toBeInTheDocument()
-    expect(screen.getByText("Time's up")).toBeInTheDocument()
-    expect(createRound).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('status')).not.toHaveTextContent('Not quite')
+    expect(screen.queryByRole('heading', { name: 'Game Over' })).not.toBeInTheDocument()
+
+    act(() => {
+      vi.advanceTimersByTime(DETERMINISTIC_READY_DELAY_MS)
+    })
+    expect(screen.queryByRole('heading', { name: 'Game Over' })).not.toBeInTheDocument()
+    expect(getStatValue('Time')).toBe('29')
+    expect(createRound).toHaveBeenCalledTimes(2)
   })
 
   it('lets the first event win the hit-versus-expiry race', () => {

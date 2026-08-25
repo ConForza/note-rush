@@ -26,4 +26,4 @@ npm run build
 
 ## Current project status
 
-This repository currently contains the application foundation only. Gameplay will be added in subsequent development stages.
+The React application foundation, framework-independent note domain engine, and music-staff renderer are implemented. Gameplay has not yet been added.

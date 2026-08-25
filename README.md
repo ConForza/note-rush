@@ -2,6 +2,8 @@
 
 Whack-a-Note is a mobile-first music note-reading game built with React and TypeScript.
 
+[Play Whack-a-Note](https://conforza.github.io/note-rush/)
+
 ## Requirements
 
 - Node.js 22.13.0 or newer
@@ -44,4 +46,4 @@ npm run build
 
 ## Current project status
 
-Whack-a-Note now includes a timed six-level treble, bass, and mixed-clef arcade progression with original vector target graphics, responsive hit/miss feedback, score, streaks, lives, game over, restart, Practice mode, synthesized feedback, saved setup preferences, and offline PWA support.
+Whack-a-Note v1.0.0 includes Arcade mode with six treble, bass, and mixed-clef stages; targeted Practice mode; optional session timers; scoring, streaks, and Arcade lives; synthesized sound and optional haptics; saved setup preferences; installable offline PWA support; and keyboard, reduced-motion, and mobile accessibility hardening.

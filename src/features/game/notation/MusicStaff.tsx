@@ -14,6 +14,8 @@ import { toVexFlowKey } from './vexflowAdapter'
 
 const LOGICAL_WIDTH = 320
 const LOGICAL_HEIGHT = 96
+const VIEWBOX_Y = 20
+const VIEWBOX_HEIGHT = 74
 const STAVE_X = 65
 const STAVE_Y = 0
 const STAVE_WIDTH = 190
@@ -54,6 +56,10 @@ export const MusicStaff = ({
 
     svg.setAttribute('aria-hidden', 'true')
     svg.setAttribute('focusable', 'false')
+    svg.setAttribute(
+      'viewBox',
+      `0 ${VIEWBOX_Y} ${LOGICAL_WIDTH} ${VIEWBOX_HEIGHT}`,
+    )
     svg.style.width = '100%'
     svg.style.height = '100%'
 

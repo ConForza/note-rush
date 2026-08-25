@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#eaf6f4"/>
+  <g transform="translate(76 76) scale(8)">
+    <path
+      d="m24 2 4 7 8-3-1 8 8 2-6 6 6 6-8 2 1 8-8-3-4 7-4-7-8 3 1-8-8-2 6-6-6-6 8-2-1-8 8 3 4-7Z"
+      fill="#f2bd5d"
+      stroke="#1c5e60"
+      stroke-linejoin="round"
+      stroke-width="1.5"
+    />
+    <path d="M27 12v18c-2-2-6-2-8 1-2 3 0 6 4 6 4 0 7-3 7-7V18l8-2v-5l-11 1Z" fill="#1d2a35"/>
+  </g>
+</svg>

@@ -16,6 +16,23 @@ npm install
 npm run dev
 ```
 
+## Installable offline app
+
+Whack-a-Note is an installable Progressive Web App. The production build
+includes the app shell, icons, manifest, and service worker so a device can
+open the game and play offline after its first successful online visit.
+
+```bash
+npm run build
+npm run preview
+```
+
+The service worker is disabled during normal Vite development. Production
+updates use a prompt-style service worker lifecycle, so a new build is picked
+up on a later load rather than forcing a refresh during an active round. Asset
+URLs use a relative Vite base, which keeps the manifest, icons, and worker
+paths compatible with root hosting and GitHub Pages repository subpaths.
+
 ## Quality checks
 
 ```bash
@@ -26,4 +43,4 @@ npm run build
 
 ## Current project status
 
-Whack-a-Note now includes a timed six-level treble, bass, and mixed-clef arcade progression with original vector target graphics, responsive hit/miss feedback, score, streaks, lives, game over, and restart. Audio, persistence, menus, PWA support, and final device hardening are still to come.
+Whack-a-Note now includes a timed six-level treble, bass, and mixed-clef arcade progression with original vector target graphics, responsive hit/miss feedback, score, streaks, lives, game over, restart, Practice mode, synthesized feedback, saved setup preferences, and offline PWA support.

@@ -56,6 +56,22 @@ const getRenderedStaveVerticalCenter = (container: HTMLElement): number => {
   return (lineYs[0] + lineYs.at(-1)!) / 2
 }
 
+const getRenderedNoteY = (container: HTMLElement): number => {
+  const noteHead = container.querySelector('.vf-notehead text')
+  const noteY = Number(noteHead?.getAttribute('y'))
+
+  if (!Number.isFinite(noteY)) {
+    throw new Error('Expected the rendered note head to expose an SVG y position')
+  }
+
+  return noteY
+}
+
+const getRenderedLedgerLineYs = (container: HTMLElement): number[] =>
+  [...container.querySelectorAll('.vf-stavenote path')]
+    .map((path) => path.getAttribute('d')?.match(/^M\s*[\d.-]+\s*([\d.-]+)/))
+    .flatMap((coordinates) => (coordinates ? [Number(coordinates[1])] : []))
+
 describe('MusicStaff', () => {
   it('renders a treble prompt as SVG', () => {
     const { container } = render(
@@ -186,7 +202,27 @@ describe('MusicStaff', () => {
     expect(stave.end).toBeLessThan(270)
     expect(staveCenter).toBeGreaterThan(145)
     expect(staveCenter).toBeLessThan(175)
-    expect(getRenderedStaveVerticalCenter(container)).toBeGreaterThan(70)
-    expect(getRenderedStaveVerticalCenter(container)).toBeLessThan(90)
+    expect(getRenderedStaveVerticalCenter(container)).toBeCloseTo(60.5, 1)
+    expect(container.querySelector('svg')).toHaveAttribute('viewBox', '0 0 320 120')
+  })
+
+  it.each([
+    ['treble C4', prompt('C', 4, 'treble')],
+    ['treble A5', prompt('A', 5, 'treble')],
+    ['bass E2', prompt('E', 2, 'bass')],
+    ['bass C4', prompt('C', 4, 'bass')],
+  ])('keeps %s notation inside the short logical canvas', (_, representativePrompt) => {
+    const { container } = render(<MusicStaff prompt={representativePrompt} />)
+    const ledgerLineYs = getRenderedLedgerLineYs(container)
+    const clefY = Number(
+      container.querySelector('.vf-clef text')?.getAttribute('y'),
+    )
+
+    expect(getRenderedNoteY(container)).toBeGreaterThan(0)
+    expect(getRenderedNoteY(container)).toBeLessThan(120)
+    expect(clefY).toBeGreaterThan(0)
+    expect(clefY).toBeLessThan(120)
+    expect(ledgerLineYs.length).toBeGreaterThan(0)
+    expect(ledgerLineYs.every((y) => y > 0 && y < 120)).toBe(true)
   })
 })

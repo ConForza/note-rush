@@ -851,7 +851,10 @@ export const GameScreen = ({
   const targetsBySlot = new Map(round.targets.map((target) => [target.slot, target]))
 
   return (
-    <section className="game-card" aria-labelledby="game-title">
+    <section
+      className={`game-card${phase === 'playing' ? ' game-card--playing' : ''}`}
+      aria-labelledby="game-title"
+    >
       <header className="game-header">
         <div className="brand-lockup">
           <WhackNoteMark />

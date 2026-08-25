@@ -1085,6 +1085,9 @@ describe('GameScreen', () => {
 
     expect(screen.getByRole('heading', { name: 'Game Over' })).toBeInTheDocument()
     expect(screen.getByText("Time's up")).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Whack-a-Note' })).not.toHaveClass(
+      'game-card--playing',
+    )
     expect(screen.queryByRole('group', { name: 'Note targets' })).not.toBeInTheDocument()
   })
 

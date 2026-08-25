@@ -688,7 +688,7 @@ input:focus-visible {
 .music-staff {
   position: relative;
   width: 100%;
-  aspect-ratio: 2 / 1;
+  aspect-ratio: 8 / 3;
   min-width: 0;
   overflow: hidden;
 }
@@ -699,6 +699,48 @@ input:focus-visible {
   width: 100%;
   max-width: 100%;
   height: 100%;
+}
+
+.game-card--playing .brand-mark {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.game-card--playing .eyebrow {
+  margin: 0;
+  font-size: 0.62rem;
+  line-height: 1.1;
+}
+
+.game-card--playing h1 {
+  font-size: clamp(1.5rem, 6vw, 1.8rem);
+}
+
+.game-card--playing .subtitle {
+  margin-top: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.game-card--playing .game-hud {
+  margin-top: 0.5rem;
+}
+
+.game-card--playing .difficulty-status {
+  margin-top: 0.4rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.game-card--playing .game-prompt {
+  margin-top: 0.4rem;
+}
+
+.game-card--playing .staff-panel {
+  padding: 0.1rem 0.5rem;
+}
+
+.game-card--playing .prompt-instruction {
+  margin: 0.3rem 0 0.25rem;
 }
 
 .game-feedback {
@@ -819,6 +861,10 @@ input:focus-visible {
     border: 0;
     border-radius: 0;
     box-shadow: none;
+  }
+
+  .game-card--playing .subtitle {
+    display: none;
   }
 }
 

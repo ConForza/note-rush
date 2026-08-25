@@ -17,6 +17,7 @@ const LOGICAL_HEIGHT = 180
 const STAVE_X = 18
 const STAVE_Y = 48
 const STAVE_WIDTH = 324
+const NOTE_AFTER_CLEF_SHIFT = 8
 
 export interface MusicStaffProps {
   prompt: NotePrompt
@@ -66,9 +67,7 @@ export const MusicStaff = ({
     const voice = new Voice({ numBeats: 4, beatValue: 4 }).addTickable(note)
 
     new Formatter().joinVoices([voice]).formatToStave([voice], stave)
-    const noteCenterX = STAVE_X + STAVE_WIDTH / 2
-    const currentNoteCenterX = note.getAbsoluteX() + note.getGlyphWidth() / 2
-    note.setXShift(noteCenterX - currentNoteCenterX)
+    note.setXShift(NOTE_AFTER_CLEF_SHIFT)
     stave.draw()
     voice.draw(context, stave)
 

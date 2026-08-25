@@ -16,6 +16,17 @@ const prompt = (
 const countRenderedSvgs = (container: HTMLElement): number =>
   container.querySelectorAll('svg').length
 
+const getRenderedNoteX = (container: HTMLElement): number => {
+  const noteHead = container.querySelector('.vf-notehead text')
+  const noteX = Number(noteHead?.getAttribute('x'))
+
+  if (!Number.isFinite(noteX)) {
+    throw new Error('Expected the rendered note head to expose an SVG x position')
+  }
+
+  return noteX
+}
+
 describe('MusicStaff', () => {
   it('renders a treble prompt as SVG', () => {
     const { container } = render(
@@ -108,5 +119,18 @@ describe('MusicStaff', () => {
     ['low bass', prompt('E', 2, 'bass')],
   ])('renders the representative %s prompt', (_, representativePrompt) => {
     expect(() => render(<MusicStaff prompt={representativePrompt} />)).not.toThrow()
+  })
+
+  it.each([
+    ['treble E4', prompt('E', 4, 'treble')],
+    ['treble A5', prompt('A', 5, 'treble')],
+    ['bass E2', prompt('E', 2, 'bass')],
+    ['bass C4', prompt('C', 4, 'bass')],
+  ])('keeps %s after the clef instead of centering the stave', (_, representativePrompt) => {
+    const { container } = render(<MusicStaff prompt={representativePrompt} />)
+    const noteX = getRenderedNoteX(container)
+
+    expect(noteX).toBeGreaterThan(45)
+    expect(noteX).toBeLessThan(180)
   })
 })

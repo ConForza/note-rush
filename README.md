@@ -4,10 +4,10 @@ Note Rush is a mobile-first music note-reading game built with React and TypeScr
 
 ## Requirements
 
-- Node.js 20.19 or newer
-- npm 10 or newer
+- Node.js 22.13.0 or newer
+- npm 10.9.7 or newer
 
-These requirements align with the Vite toolchain used by this project. The development environment currently uses Node.js 22.22.2 and npm 10.9.7.
+These minimum versions are also encoded in `package.json`. The development environment currently uses Node.js 22.22.2 and npm 10.9.7.
 
 ## Local development
 

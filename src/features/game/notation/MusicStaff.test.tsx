@@ -203,7 +203,7 @@ describe('MusicStaff', () => {
     expect(staveCenter).toBeGreaterThan(145)
     expect(staveCenter).toBeLessThan(175)
     expect(getRenderedStaveVerticalCenter(container)).toBeCloseTo(60.5, 1)
-    expect(container.querySelector('svg')).toHaveAttribute('viewBox', '0 0 320 120')
+    expect(container.querySelector('svg')).toHaveAttribute('viewBox', '0 0 320 96')
   })
 
   it.each([
@@ -219,10 +219,10 @@ describe('MusicStaff', () => {
     )
 
     expect(getRenderedNoteY(container)).toBeGreaterThan(0)
-    expect(getRenderedNoteY(container)).toBeLessThan(120)
+    expect(getRenderedNoteY(container)).toBeLessThan(96)
     expect(clefY).toBeGreaterThan(0)
-    expect(clefY).toBeLessThan(120)
+    expect(clefY).toBeLessThan(96)
     expect(ledgerLineYs.length).toBeGreaterThan(0)
-    expect(ledgerLineYs.every((y) => y > 0 && y < 120)).toBe(true)
+    expect(ledgerLineYs.every((y) => y > 0 && y < 96)).toBe(true)
   })
 })

@@ -898,8 +898,6 @@ export const GameScreen = ({
             </div>
           </div>
 
-          <p className="prompt-instruction">Which note?</p>
-
           <div className="target-board-shell">
             <div
               ref={targetBoardRef}

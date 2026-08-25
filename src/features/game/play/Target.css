@@ -11,6 +11,10 @@
   box-shadow: inset 0 0.2rem 0 rgb(255 255 255 / 32%), 0 0.75rem 1.4rem rgb(34 76 62 / 14%);
 }
 
+.game-card--playing .target-board-shell {
+  padding-top: 0.4rem;
+}
+
 .target-board {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

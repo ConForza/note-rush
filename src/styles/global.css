@@ -677,18 +677,10 @@ input:focus-visible {
   box-shadow: 0 0.35rem 0 rgb(38 91 82 / 9%);
 }
 
-.prompt-instruction {
-  margin: 1rem 0 0.5rem;
-  color: var(--game-ink);
-  font-size: 1rem;
-  font-weight: 700;
-  text-align: center;
-}
-
 .music-staff {
   position: relative;
   width: 100%;
-  aspect-ratio: 8 / 3;
+  aspect-ratio: 10 / 3;
   min-width: 0;
   overflow: hidden;
 }
@@ -732,15 +724,11 @@ input:focus-visible {
 }
 
 .game-card--playing .game-prompt {
-  margin-top: 0.4rem;
+  margin-top: 0.15rem;
 }
 
 .game-card--playing .staff-panel {
-  padding: 0.1rem 0.5rem;
-}
-
-.game-card--playing .prompt-instruction {
-  margin: 0.3rem 0 0.25rem;
+  padding: 0 0.5rem;
 }
 
 .game-feedback {
@@ -861,6 +849,14 @@ input:focus-visible {
     border: 0;
     border-radius: 0;
     box-shadow: none;
+  }
+
+  .game-card--playing {
+    padding-top: max(0.6rem, env(safe-area-inset-top));
+  }
+
+  .game-card--playing .eyebrow {
+    display: none;
   }
 
   .game-card--playing .subtitle {

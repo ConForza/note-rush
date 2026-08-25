@@ -122,6 +122,7 @@ describe('GameScreen', () => {
     expect(
       screen.getByRole('img', { name: 'Note to identify on treble clef' }),
     ).toBeInTheDocument()
+    expect(screen.queryByText('Which note?')).not.toBeInTheDocument()
     expect(screen.getByText('Level 1')).toBeInTheDocument()
     expect(screen.getByText('Treble Basics')).toBeInTheDocument()
     expect(screen.getByText('0 / 4 correct')).toBeInTheDocument()

@@ -15,8 +15,8 @@ export interface ProgressUpdate {
   readonly advanced: boolean
 }
 
-export const createInitialGameProgress = (): GameProgress => ({
-  stageIndex: 0,
+export const createInitialGameProgress = (stageIndex = 0): GameProgress => ({
+  stageIndex,
   correctInStage: 0,
 })
 

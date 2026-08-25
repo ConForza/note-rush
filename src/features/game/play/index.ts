@@ -62,6 +62,10 @@ export {
   type ClockSource,
 } from './gameTimer'
 export {
+  createTargetEmergenceSchedule,
+  type TargetEmergenceSchedule,
+} from './targetEmergence'
+export {
   Target,
   type TargetProps,
   type TargetVisualState,

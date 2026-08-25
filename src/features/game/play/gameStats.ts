@@ -21,6 +21,7 @@ export const createInitialGameStats = (): GameStats => ({
 export const applyRoundResult = (
   stats: GameStats,
   result: GameResult,
+  loseLife = true,
 ): GameStats => {
   if (result === 'correct') {
     const nextStreak = stats.streak + 1
@@ -39,11 +40,13 @@ export const applyRoundResult = (
     score: Math.max(0, stats.score),
     streak: 0,
     bestStreak: Math.max(0, stats.bestStreak),
-    lives: Math.max(0, stats.lives - 1),
+    lives: loseLife ? Math.max(0, stats.lives - 1) : Math.max(0, stats.lives),
   }
 }
 
 export const applyHitResult = (
   stats: GameStats,
   correct: boolean,
-): GameStats => applyRoundResult(stats, correct ? 'correct' : 'incorrect')
+  loseLife = true,
+): GameStats =>
+  applyRoundResult(stats, correct ? 'correct' : 'incorrect', loseLife)

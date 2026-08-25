@@ -9,6 +9,8 @@ export interface GameOverScreenProps {
   reason: GameOverReason
   levelReached: DifficultyStage
   onRestart: () => void
+  onExit?: () => void
+  practice?: boolean
 }
 
 export const GameOverScreen = ({
@@ -17,16 +19,18 @@ export const GameOverScreen = ({
   reason,
   levelReached,
   onRestart,
+  onExit,
+  practice = false,
 }: GameOverScreenProps): ReactElement => (
   <section
     className={`game-over game-over--${reason}`}
     aria-labelledby="game-over-title"
   >
     <WhackNoteMark />
-    <p className="eyebrow">Run complete</p>
-    <h2 id="game-over-title">Game Over</h2>
+    <p className="eyebrow">{practice ? 'Practice complete' : 'Run complete'}</p>
+    <h2 id="game-over-title">{practice ? 'Practice Complete' : 'Game Over'}</h2>
     <p className="game-over-reason">
-      {reason === 'time' ? "Time's up" : 'Out of lives'}
+      {practice ? 'Nice work — keep building your note-reading speed.' : reason === 'time' ? "Time's up" : 'Out of lives'}
     </p>
     <dl className="game-over-stats">
       <div>
@@ -38,14 +42,19 @@ export const GameOverScreen = ({
         <dd>{bestStreak}</dd>
       </div>
       <div className="game-over-stat--level">
-        <dt>Level reached</dt>
+        <dt>{practice ? 'Practice level' : 'Level reached'}</dt>
         <dd>
           {levelReached.level} — {levelReached.label}
         </dd>
       </div>
     </dl>
     <button className="restart-button" type="button" onClick={onRestart}>
-      Play Again
+      {practice ? 'Practice Again' : 'Play Again'}
     </button>
+    {onExit ? (
+      <button className="exit-button" type="button" onClick={onExit}>
+        Change Setup
+      </button>
+    ) : null}
   </section>
 )

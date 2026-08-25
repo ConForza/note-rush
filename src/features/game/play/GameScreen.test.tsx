@@ -254,6 +254,146 @@ describe('GameScreen', () => {
     })
   })
 
+  it('starts Practice directly on the selected Bass Basics stage', () => {
+    const createRound = vi.fn((stage: DifficultyStage): GameRound =>
+      stage.id === 'bass-basics' ? bassRound : firstRound,
+    )
+
+    render(
+      <GameScreen
+        createRound={createRound}
+        presentationRandom={() => 0}
+        sessionConfig={{
+          mode: 'practice',
+          stageId: 'bass-basics',
+          timerSeconds: null,
+        }}
+      />,
+    )
+
+    expect(createRound.mock.calls[0]?.[0].id).toBe('bass-basics')
+    expect(screen.getByRole('img', { name: 'Note to identify on bass clef' })).toBeInTheDocument()
+    expect(screen.getByText('Practice')).toBeInTheDocument()
+    expect(screen.getByText('Bass Basics')).toBeInTheDocument()
+    expect(screen.queryByText('3 lives remaining')).not.toBeInTheDocument()
+    expect(screen.queryByText('Time')).not.toBeInTheDocument()
+  })
+
+  it('keeps Practice fixed and life-free after correct and incorrect answers', () => {
+    renderReady(
+      <GameScreen
+        createRound={() => firstRound}
+        sessionConfig={{
+          mode: 'practice',
+          stageId: 'bass-basics',
+          timerSeconds: null,
+        }}
+      />,
+    )
+
+    for (let index = 0; index < 8; index += 1) {
+      fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
+      advanceHit()
+    }
+
+    expect(screen.getByText('Practice')).toBeInTheDocument()
+    expect(screen.getByText('Bass Basics')).toBeInTheDocument()
+    expect(screen.queryByText('Correct! Level up')).not.toBeInTheDocument()
+    expect(screen.queryByText('3 lives remaining')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hit D' }))
+    expect(getStatValue('Score')).toBe('1,080')
+    expect(getStatValue('Streak')).toBe('0')
+    expect(screen.getByRole('status')).toHaveTextContent('Not quite — C')
+    expect(screen.queryByText('2 lives remaining')).not.toBeInTheDocument()
+  })
+
+  it('leaves an unanswered untimed Practice question available indefinitely', () => {
+    renderReady(
+      <GameScreen
+        createRound={() => firstRound}
+        sessionConfig={{
+          mode: 'practice',
+          stageId: 'treble-basics',
+          timerSeconds: null,
+        }}
+      />,
+    )
+
+    act(() => {
+      vi.advanceTimersByTime(10_000)
+    })
+
+    expect(screen.getByRole('button', { name: 'Hit C' })).toBeEnabled()
+    expect(screen.getByRole('status')).not.toHaveTextContent('Too slow')
+    expect(screen.getByText('Practice')).toBeInTheDocument()
+  })
+
+  it.each([60, 120] as const)('shows the configured Arcade timer (%s seconds)', (seconds) => {
+    renderReady(
+      <GameScreen
+        createRound={() => firstRound}
+        sessionConfig={{ mode: 'arcade', timerSeconds: seconds }}
+      />,
+    )
+
+    expect(getStatValue('Time')).toBe(String(seconds))
+  })
+
+  it('hides the global timer in Arcade timer-Off mode while keeping lives', () => {
+    renderReady(
+      <GameScreen
+        createRound={() => firstRound}
+        sessionConfig={{ mode: 'arcade', timerSeconds: null }}
+      />,
+    )
+
+    expect(screen.queryByText('Time')).not.toBeInTheDocument()
+    expect(screen.getByText('3 lives remaining')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Hit D' }))
+    expect(screen.getByText('2 lives remaining')).toBeInTheDocument()
+  })
+
+  it('does not award the Arcade time bonus in timed Practice', () => {
+    let now = 0
+    const clock = (): number => now
+
+    renderReady(
+      <GameScreen
+        clock={clock}
+        createRound={() => firstRound}
+        sessionConfig={{ mode: 'practice', stageId: 'treble-basics', timerSeconds: 30 }}
+      />,
+    )
+
+    now = 5_000
+    fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
+
+    expect(getStatValue('Time')).toBe('25')
+  })
+
+  it('ends timed Practice positively when the session timer expires', () => {
+    let now = 0
+    const clock = (): number => now
+
+    renderReady(
+      <GameScreen
+        clock={clock}
+        createRound={() => firstRound}
+        sessionConfig={{ mode: 'practice', stageId: 'treble-basics', timerSeconds: 30 }}
+      />,
+    )
+
+    now = 30_000
+    act(() => {
+      vi.advanceTimersByTime(100)
+    })
+
+    expect(screen.getByRole('heading', { name: 'Practice Complete' })).toBeInTheDocument()
+    expect(screen.getByText(/Nice work/)).toBeInTheDocument()
+    expect(screen.queryByText('Too slow')).not.toBeInTheDocument()
+  })
+
   it('updates score, streak, and leaves lives unchanged on a correct hit', () => {
     renderReady(<GameScreen createRound={() => firstRound} />)
 

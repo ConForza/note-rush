@@ -6,6 +6,7 @@ import {
   type ReactElement,
 } from 'react'
 import { MusicStaff } from '../notation'
+import { type RandomSource } from '../domain'
 import {
   ACTIVE_TARGET_COUNT,
   createGameRound,
@@ -15,7 +16,6 @@ import {
   type GameRound,
   type GameTarget,
 } from './gameRound'
-import { type RandomSource } from '../domain'
 import {
   Target,
   TargetHole,
@@ -28,7 +28,7 @@ import {
 import { GameHud } from './GameHud'
 import { GameOverScreen } from './GameOverScreen'
 import { DifficultyStatus } from './DifficultyStatus'
-import { getDifficultyStage, type DifficultyStage } from './gameDifficulty'
+import { type DifficultyStage } from './gameDifficulty'
 import { WhackNoteMark } from './WhackNoteMark'
 import {
   applyProgressResult,
@@ -41,7 +41,6 @@ import {
   createGameDeadline,
   getRemainingTime,
   HIT_FEEDBACK_MS,
-  INITIAL_GAME_TIME_MS,
   TIMER_REFRESH_MS,
   type ClockSource,
 } from './gameTimer'
@@ -51,6 +50,14 @@ import {
   type GameResult,
   type GameStats,
 } from './gameStats'
+import {
+  DEFAULT_ARCADE_CONFIG,
+  getSessionRules,
+  getSessionStage,
+  getSessionStageIndex,
+  getSessionTimerMs,
+  type GameSessionConfig,
+} from '../session'
 
 type TimerHandleRef = { current: number | null }
 
@@ -79,6 +86,8 @@ export interface GameScreenProps {
   createRound?: GameRoundFactory
   clock?: ClockSource
   presentationRandom?: RandomSource
+  sessionConfig?: GameSessionConfig
+  onExit?: () => void
 }
 
 const clearTimeoutRef = (timerRef: TimerHandleRef): void => {
@@ -125,12 +134,19 @@ export const GameScreen = ({
   createRound = createGameRound,
   clock = Date.now,
   presentationRandom = Math.random,
+  sessionConfig = DEFAULT_ARCADE_CONFIG,
+  onExit,
 }: GameScreenProps): ReactElement => {
+  const sessionRules = getSessionRules(sessionConfig)
+  const initialStageIndex =
+    sessionConfig.mode === 'practice'
+      ? getSessionStageIndex(sessionConfig)
+      : 0
   const [progress, setProgress] = useState<GameProgress>(
-    createInitialGameProgress,
+    () => createInitialGameProgress(initialStageIndex),
   )
   const [round, setRound] = useState<GameRound>(() =>
-    createRound(getDifficultyStage(0)),
+    createRound(getSessionStage(sessionConfig, initialStageIndex)),
   )
   const [feedback, setFeedback] = useState<RoundFeedback>(null)
   const [roundReady, setRoundReady] = useState(false)
@@ -147,15 +163,19 @@ export const GameScreen = ({
   const [phase, setPhase] = useState<GamePhase>('playing')
   const [gameOverReason, setGameOverReason] =
     useState<GameOverReason | null>(null)
-  const [initialGameDeadline] = useState(() =>
-    createGameDeadline(clock(), INITIAL_GAME_TIME_MS),
-  )
+  const [initialGameDeadline] = useState<number | null>(() => {
+    const timerMs = getSessionTimerMs(sessionConfig)
+
+    return timerMs === null ? null : createGameDeadline(clock(), timerMs)
+  })
   const [remainingTimeMs, setRemainingTimeMs] = useState(() =>
-    getRemainingTime(initialGameDeadline, clock()),
+    initialGameDeadline === null
+      ? null
+      : getRemainingTime(initialGameDeadline, clock()),
   )
 
   const clockRef = useRef<ClockSource>(clock)
-  const gameDeadlineRef = useRef(initialGameDeadline)
+  const gameDeadlineRef = useRef<number | null>(initialGameDeadline)
   const progressRef = useRef(progress)
   const roundRef = useRef(round)
   const feedbackRef = useRef<RoundFeedback>(null)
@@ -199,8 +219,10 @@ export const GameScreen = ({
   )
 
   const getGlobalRemainingTime = useCallback(
-    (): number =>
-      getRemainingTime(gameDeadlineRef.current, getGlobalEffectiveNow()),
+    (): number | null =>
+      gameDeadlineRef.current === null
+        ? null
+        : getRemainingTime(gameDeadlineRef.current, getGlobalEffectiveNow()),
     [getGlobalEffectiveNow],
   )
 
@@ -254,6 +276,10 @@ export const GameScreen = ({
 
     const remaining = getGlobalRemainingTime()
 
+    if (remaining === null) {
+      return
+    }
+
     globalExpiryTimeoutRef.current = window.setTimeout(() => {
       globalExpiryTimeoutRef.current = null
       refreshGlobalTimer()
@@ -274,7 +300,10 @@ export const GameScreen = ({
   }, [refreshGlobalTimer])
 
   const pauseGlobalTimer = useCallback((): void => {
-    if (globalPauseStartedRef.current !== null) {
+    if (
+      gameDeadlineRef.current === null ||
+      globalPauseStartedRef.current !== null
+    ) {
       return
     }
 
@@ -290,8 +319,10 @@ export const GameScreen = ({
       return
     }
 
-    const pausedDuration = Math.max(0, clockRef.current() - pauseStarted)
-    gameDeadlineRef.current += pausedDuration
+    if (gameDeadlineRef.current !== null) {
+      const pausedDuration = Math.max(0, clockRef.current() - pauseStarted)
+      gameDeadlineRef.current += pausedDuration
+    }
     globalPauseStartedRef.current = null
     refreshGlobalTimer()
     startGlobalRefresh()
@@ -341,7 +372,9 @@ export const GameScreen = ({
           clockRef.current(),
           stage.roundLifetimeMs,
         )
-        scheduleRoundExpiry(roundId, roundDeadlineRef.current)
+        if (sessionRules.usesRoundDeadline) {
+          scheduleRoundExpiry(roundId, roundDeadlineRef.current)
+        }
         resumeGlobalTimer()
       }, schedule.readyDelayMs)
     },
@@ -351,6 +384,7 @@ export const GameScreen = ({
       pauseGlobalTimer,
       resumeGlobalTimer,
       scheduleRoundExpiry,
+      sessionRules.usesRoundDeadline,
     ],
   )
 
@@ -362,13 +396,13 @@ export const GameScreen = ({
     const remaining = getGlobalRemainingTime()
     setRemainingTimeMs(remaining)
 
-    if (remaining === 0) {
+    if (remaining === 0 && sessionConfig.timerSeconds !== null) {
       globalExpiredRef.current = true
       finishGame('time')
       return
     }
 
-    const nextStage = getDifficultyStage(progressRef.current.stageIndex)
+    const nextStage = getSessionStage(sessionConfig, progressRef.current.stageIndex)
     const nextRound = createRound(nextStage)
     const nextRoundId = roundIdRef.current + 1
     const nextEmergenceSchedule = createTargetEmergenceSchedule(
@@ -394,6 +428,7 @@ export const GameScreen = ({
     finishGame,
     getGlobalRemainingTime,
     presentationRandom,
+    sessionConfig,
     startRoundPresentation,
   ])
 
@@ -415,11 +450,14 @@ export const GameScreen = ({
       setRoundReady(false)
       pauseGlobalTimer()
 
-      const nextStats = applyRoundResult(statsRef.current, outcome.type)
-      const progressUpdate = applyProgressResult(
-        progressRef.current,
+      const nextStats = applyRoundResult(
+        statsRef.current,
         outcome.type,
+        sessionRules.usesLives,
       )
+      const progressUpdate = sessionRules.usesProgression
+        ? applyProgressResult(progressRef.current, outcome.type)
+        : { progress: progressRef.current, advanced: false }
       const nextFeedback: RoundFeedback =
         outcome.type === 'miss'
           ? { type: 'miss' }
@@ -434,7 +472,11 @@ export const GameScreen = ({
       setStats(nextStats)
       setFeedback(nextFeedback)
 
-      if (outcome.type === 'correct') {
+      if (
+        outcome.type === 'correct' &&
+        sessionRules.usesCorrectTimeBonus &&
+        gameDeadlineRef.current !== null
+      ) {
         gameDeadlineRef.current = addTimeToDeadline(
           gameDeadlineRef.current,
           CORRECT_TIME_BONUS_MS,
@@ -455,7 +497,7 @@ export const GameScreen = ({
           return
         }
 
-        if (nextStats.lives === 0) {
+        if (sessionRules.usesLives && nextStats.lives === 0) {
           finishGame('lives')
           return
         }
@@ -479,6 +521,9 @@ export const GameScreen = ({
       finishGame,
       getGlobalRemainingTime,
       pauseGlobalTimer,
+      sessionRules.usesCorrectTimeBonus,
+      sessionRules.usesLives,
+      sessionRules.usesProgression,
       startNextRound,
     ],
   )
@@ -553,18 +598,19 @@ export const GameScreen = ({
     clearGlobalExpiry()
     globalPauseStartedRef.current = null
 
-    const freshProgress = createInitialGameProgress()
-    const freshStage = getDifficultyStage(freshProgress.stageIndex)
+    const freshProgress = createInitialGameProgress(initialStageIndex)
+    const freshStage = getSessionStage(sessionConfig, freshProgress.stageIndex)
     const freshRound = createRound(freshStage)
     const freshEmergenceSchedule = createTargetEmergenceSchedule(
       freshRound.targets,
       presentationRandom,
       prefersReducedMotion(),
     )
-    const freshDeadline = createGameDeadline(
-      clockRef.current(),
-      INITIAL_GAME_TIME_MS,
-    )
+    const freshTimerMs = getSessionTimerMs(sessionConfig)
+    const freshDeadline =
+      freshTimerMs === null
+        ? null
+        : createGameDeadline(clockRef.current(), freshTimerMs)
     const freshRoundId = roundIdRef.current + 1
 
     gameDeadlineRef.current = freshDeadline
@@ -590,7 +636,9 @@ export const GameScreen = ({
     setPhase('playing')
     setGameOverReason(null)
     setRemainingTimeMs(
-      getRemainingTime(freshDeadline, clockRef.current()),
+      freshDeadline === null
+        ? null
+        : getRemainingTime(freshDeadline, clockRef.current()),
     )
 
     startRoundPresentation(freshRoundId, freshStage, freshEmergenceSchedule)
@@ -600,7 +648,9 @@ export const GameScreen = ({
     clearRoundReady,
     clearTransition,
     createRound,
+    initialStageIndex,
     presentationRandom,
+    sessionConfig,
     startRoundPresentation,
   ])
 
@@ -621,7 +671,7 @@ export const GameScreen = ({
     pauseGlobalTimer()
     startRoundPresentation(
       1,
-      getDifficultyStage(progressRef.current.stageIndex),
+      getSessionStage(sessionConfig, progressRef.current.stageIndex),
       initialEmergenceScheduleRef.current,
     )
     refreshGlobalTimer()
@@ -649,10 +699,11 @@ export const GameScreen = ({
     clearTransition,
     pauseGlobalTimer,
     refreshGlobalTimer,
+    sessionConfig,
     startRoundPresentation,
   ])
 
-  const currentStage = getDifficultyStage(progress.stageIndex)
+  const currentStage = getSessionStage(sessionConfig, progress.stageIndex)
   const feedbackMessage = feedback
     ? feedback.type === 'correct'
       ? feedback.levelUp
@@ -689,13 +740,20 @@ export const GameScreen = ({
           reason={gameOverReason ?? 'time'}
           levelReached={currentStage}
           onRestart={handleRestart}
+          onExit={onExit}
+          practice={sessionConfig.mode === 'practice'}
         />
       ) : (
         <>
-          <GameHud stats={stats} remainingTimeMs={remainingTimeMs} />
+          <GameHud
+            stats={stats}
+            remainingTimeMs={remainingTimeMs}
+            showLives={sessionRules.usesLives}
+          />
           <DifficultyStatus
             stage={currentStage}
             correctInStage={progress.correctInStage}
+            practice={sessionConfig.mode === 'practice'}
           />
 
           <div className="game-prompt">
@@ -750,6 +808,11 @@ export const GameScreen = ({
           <span className="sr-only">
             {ACTIVE_TARGET_COUNT} note targets are active.
           </span>
+          {onExit ? (
+            <button className="exit-button" type="button" onClick={onExit}>
+              Change Setup
+            </button>
+          ) : null}
         </>
       )}
     </section>

@@ -27,6 +27,22 @@ const getRenderedNoteX = (container: HTMLElement): number => {
   return noteX
 }
 
+const getRenderedStaveSpan = (container: HTMLElement): { start: number; end: number } => {
+  const linePath = [...container.querySelectorAll('.vf-stave path')]
+    .map((path) => path.getAttribute('d'))
+    .find((path) => path?.includes('L'))
+  const lineCoordinates = linePath?.match(/^M\s*([\d.-]+)\s*[\d.-]+L\s*([\d.-]+)/)
+
+  if (!lineCoordinates) {
+    throw new Error('Expected the rendered stave to expose horizontal line coordinates')
+  }
+
+  return {
+    start: Number(lineCoordinates[1]),
+    end: Number(lineCoordinates[2]),
+  }
+}
+
 describe('MusicStaff', () => {
   it('renders a treble prompt as SVG', () => {
     const { container } = render(
@@ -129,8 +145,24 @@ describe('MusicStaff', () => {
   ])('keeps %s after the clef instead of centering the stave', (_, representativePrompt) => {
     const { container } = render(<MusicStaff prompt={representativePrompt} />)
     const noteX = getRenderedNoteX(container)
+    const stave = getRenderedStaveSpan(container)
 
-    expect(noteX).toBeGreaterThan(45)
-    expect(noteX).toBeLessThan(180)
+    expect(noteX).toBeGreaterThan(stave.start + 20)
+    expect(noteX).toBeLessThan(stave.end - 30)
+  })
+
+  it('centers a compact stave inside the logical canvas', () => {
+    const { container } = render(
+      <MusicStaff prompt={prompt('C', 4, 'treble')} />,
+    )
+    const stave = getRenderedStaveSpan(container)
+    const staveWidth = stave.end - stave.start
+    const staveCenter = (stave.start + stave.end) / 2
+
+    expect(staveWidth).toBeLessThan(220)
+    expect(stave.start).toBeGreaterThan(50)
+    expect(stave.end).toBeLessThan(310)
+    expect(staveCenter).toBeGreaterThan(165)
+    expect(staveCenter).toBeLessThan(195)
   })
 })

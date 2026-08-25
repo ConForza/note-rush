@@ -9,6 +9,6 @@ describe('Note Rush application', () => {
     expect(
       screen.getByRole('heading', { name: 'Note Rush' }),
     ).toBeInTheDocument()
-    expect(screen.getByText('Music note-reading game')).toBeInTheDocument()
+    expect(screen.getByText('Whack the note')).toBeInTheDocument()
   })
 })

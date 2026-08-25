@@ -1,73 +1,50 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react'
-import {
-  NATURAL_NOTE_NAMES,
-  type NoteName,
-  type NotePrompt,
-} from '../domain'
 import { MusicStaff } from '../notation'
-import { createGamePrompt, isCorrectAnswer } from './gameRound'
+import {
+  ACTIVE_TARGET_COUNT,
+  createGameRound,
+  GAME_BOARD_SLOTS,
+  isCorrectTarget,
+  type GameRound,
+  type GameTarget,
+} from './gameRound'
+import { Target, type TargetVisualState } from './Target'
 
-const ANSWER_FEEDBACK_MS = 400
+const HIT_FEEDBACK_MS = 400
 
-type AnswerFeedback = {
-  selected: NoteName
+type HitFeedback = {
+  selectedTargetId: string
   correct: boolean
 } | null
 
-type AnswerButtonState = 'correct' | 'incorrect' | 'correct-answer' | null
-
 export interface GameScreenProps {
-  createPrompt?: () => NotePrompt
+  createRound?: () => GameRound
 }
 
-const getAnswerButtonState = (
-  note: NoteName,
-  prompt: NotePrompt,
-  feedback: AnswerFeedback,
-): AnswerButtonState => {
+const getTargetVisualState = (
+  target: GameTarget,
+  feedback: HitFeedback,
+): TargetVisualState => {
   if (!feedback) {
-    return null
+    return 'idle'
   }
 
-  if (feedback.correct && note === feedback.selected) {
-    return 'correct'
+  if (target.id === feedback.selectedTargetId) {
+    return feedback.correct ? 'correct' : 'incorrect'
   }
 
-  if (!feedback.correct && note === feedback.selected) {
-    return 'incorrect'
-  }
-
-  if (!feedback.correct && note === prompt.pitch.note) {
+  if (!feedback.correct && isCorrectTarget(target)) {
     return 'correct-answer'
   }
 
-  return null
-}
-
-const getAnswerButtonLabel = (
-  note: NoteName,
-  state: AnswerButtonState,
-): string => {
-  if (state === 'correct') {
-    return `${note}, correct`
-  }
-
-  if (state === 'incorrect') {
-    return `${note}, incorrect`
-  }
-
-  if (state === 'correct-answer') {
-    return `${note}, correct answer`
-  }
-
-  return note
+  return 'idle'
 }
 
 export const GameScreen = ({
-  createPrompt = createGamePrompt,
+  createRound = createGameRound,
 }: GameScreenProps): ReactElement => {
-  const [prompt, setPrompt] = useState<NotePrompt>(() => createPrompt())
-  const [feedback, setFeedback] = useState<AnswerFeedback>(null)
+  const [round, setRound] = useState<GameRound>(() => createRound())
+  const [feedback, setFeedback] = useState<HitFeedback>(null)
   const transitionTimeoutRef = useRef<number | null>(null)
 
   useEffect(
@@ -79,66 +56,62 @@ export const GameScreen = ({
     [],
   )
 
-  const handleAnswer = (answer: NoteName): void => {
+  const handleTargetHit = (target: GameTarget): void => {
     if (feedback !== null || transitionTimeoutRef.current !== null) {
       return
     }
 
-    const correct = isCorrectAnswer(prompt, answer)
-    setFeedback({ selected: answer, correct })
+    const correct = isCorrectTarget(target)
+    setFeedback({ selectedTargetId: target.id, correct })
 
     transitionTimeoutRef.current = window.setTimeout(() => {
       transitionTimeoutRef.current = null
-      setPrompt(createPrompt())
+      setRound(createRound())
       setFeedback(null)
-    }, ANSWER_FEEDBACK_MS)
+    }, HIT_FEEDBACK_MS)
   }
 
   const feedbackMessage = feedback
     ? feedback.correct
-      ? 'Correct'
-      : `Incorrect — ${prompt.pitch.note}`
+      ? 'Correct!'
+      : `Not quite — ${round.prompt.pitch.note}`
     : ''
+  const targetsBySlot = new Map(round.targets.map((target) => [target.slot, target]))
 
   return (
     <section className="game-card" aria-labelledby="game-title">
       <header className="game-header">
         <p className="eyebrow">Note identification</p>
         <h1 id="game-title">Note Rush</h1>
-        <p className="subtitle">Music note-reading game</p>
+        <p className="subtitle">Whack the note</p>
       </header>
 
       <div className="game-prompt">
         <MusicStaff
-          prompt={prompt}
+          prompt={round.prompt}
           ariaLabel="Note to identify on treble clef"
         />
       </div>
 
-      <p className="prompt-instruction">Choose the note</p>
+      <p className="prompt-instruction">Which note?</p>
 
-      <div className="answer-grid" aria-label="Note name answers">
-        {NATURAL_NOTE_NAMES.map((note) => {
-          const state = getAnswerButtonState(note, prompt, feedback)
+      <div className="target-board" role="group" aria-label="Note targets">
+        {GAME_BOARD_SLOTS.map((slot) => {
+          const target = targetsBySlot.get(slot)
 
           return (
-            <button
-              key={note}
-              type="button"
-              className={
-                state ? `answer-button answer-button--${state}` : 'answer-button'
-              }
-              disabled={feedback !== null}
-              aria-label={getAnswerButtonLabel(note, state)}
-              onClick={() => handleAnswer(note)}
-            >
-              <span>{note}</span>
-              {state && (
-                <span className="answer-marker" aria-hidden="true">
-                  {state === 'incorrect' ? '×' : '✓'}
-                </span>
+            <div className="target-slot" data-slot={slot} key={`slot-${slot}`}>
+              {target ? (
+                <Target
+                  target={target}
+                  state={getTargetVisualState(target, feedback)}
+                  disabled={feedback !== null}
+                  onHit={handleTargetHit}
+                />
+              ) : (
+                <span className="target-hole" aria-hidden="true" />
               )}
-            </button>
+            </div>
           )
         })}
       </div>
@@ -151,6 +124,7 @@ export const GameScreen = ({
       >
         {feedbackMessage}
       </p>
+      <span className="sr-only">{ACTIVE_TARGET_COUNT} note targets are active.</span>
     </section>
   )
 }

@@ -26,4 +26,4 @@ npm run build
 
 ## Current project status
 
-Note Rush now includes the application foundation, note domain engine, VexFlow staff renderer, and a playable treble-clef note-identification loop. Scoring, progression, game modes, and polish are still to come.
+Note Rush now includes a playable mobile whack-a-mole-style treble note-identification loop using dynamically generated correct and decoy targets. Scoring, lives, timing, progression, custom graphics, audio, and persistence are still to come.

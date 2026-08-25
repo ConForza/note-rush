@@ -1,5 +1,7 @@
 import { type ReactElement } from 'react'
 import { type GameTarget } from './gameRound'
+import { WhackCreature } from './WhackCreature'
+import './Target.css'
 
 export type TargetVisualState =
   | 'idle'
@@ -13,6 +15,12 @@ export interface TargetProps {
   disabled: boolean
   onHit: (target: GameTarget) => void
 }
+
+export const TargetHole = (): ReactElement => (
+  <span className="target-hole" aria-hidden="true">
+    <span className="target-hole-rim" />
+  </span>
+)
 
 const getTargetAccessibleName = (
   target: GameTarget,
@@ -55,22 +63,14 @@ export const Target = ({
         aria-label={getTargetAccessibleName(target, state)}
         onClick={() => onHit(target)}
       >
-        <span className="target-ear target-ear--left" aria-hidden="true" />
-        <span className="target-ear target-ear--right" aria-hidden="true" />
-        <span className="target-face" aria-hidden="true">
-          <span className="target-eye target-eye--left" />
-          <span className="target-eye target-eye--right" />
-        </span>
-        <span className="target-letter" aria-hidden="true">
-          {target.note}
-        </span>
+        <WhackCreature note={target.note} />
         {state !== 'idle' && (
           <span className="target-marker" aria-hidden="true">
             {state === 'incorrect' ? '×' : '✓'}
           </span>
         )}
       </button>
-      <span className="target-hole" aria-hidden="true" />
+      <TargetHole />
     </>
   )
 }

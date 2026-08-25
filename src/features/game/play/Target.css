@@ -1,0 +1,307 @@
+.target-board-shell {
+  width: min(100%, 24rem);
+  margin: 0 auto;
+  padding: 0.9rem 0.55rem 1.05rem;
+  background:
+    radial-gradient(circle at 18% 12%, rgb(255 255 255 / 44%) 0 0.25rem, transparent 0.3rem),
+    radial-gradient(circle at 82% 28%, rgb(255 255 255 / 28%) 0 0.18rem, transparent 0.23rem),
+    linear-gradient(160deg, var(--game-ground) 0%, var(--game-ground-deep) 100%);
+  border: 1px solid rgb(25 93 74 / 22%);
+  border-radius: 1.25rem;
+  box-shadow: inset 0 0.2rem 0 rgb(255 255 255 / 32%), 0 0.75rem 1.4rem rgb(34 76 62 / 14%);
+}
+
+.target-board {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 0.8rem;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.target-slot {
+  display: flex;
+  min-width: 0;
+  min-height: 6.7rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.target-button {
+  position: relative;
+  z-index: 2;
+  display: block;
+  width: min(100%, 7.25rem);
+  height: 6.2rem;
+  min-height: 6.2rem;
+  margin: 0 0 -1.1rem;
+  padding: 0;
+  color: var(--game-ink);
+  background: transparent;
+  border: 0;
+  border-radius: 3.5rem 3.5rem 2rem 2rem;
+  cursor: pointer;
+  isolation: isolate;
+  touch-action: manipulation;
+}
+
+.target-art,
+.target-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.target-button .target-art {
+  animation: target-pop 180ms ease-out both;
+  transition: transform 120ms ease;
+}
+
+.target-svg {
+  overflow: visible;
+}
+
+.target-svg-ear {
+  fill: var(--target-body-dark);
+  stroke: var(--target-outline);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.target-svg-crest {
+  fill: var(--target-crest);
+  stroke: var(--target-outline);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.target-svg-body {
+  fill: var(--target-body);
+  stroke: var(--target-outline);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.target-svg-belly {
+  fill: var(--target-body-light);
+  opacity: 0.94;
+}
+
+.target-svg-eye {
+  fill: var(--target-eye);
+  stroke: var(--target-outline);
+  stroke-width: 2;
+}
+
+.target-svg-pupil {
+  fill: var(--game-ink);
+}
+
+.target-svg-smile {
+  fill: none;
+  stroke: var(--game-ink);
+  stroke-linecap: round;
+  stroke-width: 2.5;
+}
+
+.target-svg-badge {
+  fill: var(--target-badge);
+  stroke: var(--target-outline);
+  stroke-width: 3;
+}
+
+.target-svg-letter {
+  fill: var(--game-ink);
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 2rem;
+  font-weight: 900;
+}
+
+.target-svg-note {
+  fill: var(--target-crest);
+  stroke: var(--target-outline);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.target-hole {
+  position: relative;
+  z-index: 3;
+  display: block;
+  width: min(100%, 7.25rem);
+  height: 2rem;
+  flex: 0 0 2rem;
+  background: radial-gradient(ellipse at center, var(--hole-inner) 0 50%, var(--hole) 72%);
+  border: 3px solid var(--hole-border);
+  border-radius: 50%;
+  box-shadow: inset 0 0.35rem 0 rgb(255 255 255 / 9%), 0 0.3rem 0 rgb(36 69 50 / 22%);
+  pointer-events: none;
+}
+
+.target-hole-rim {
+  position: absolute;
+  right: 7%;
+  bottom: -0.4rem;
+  left: 7%;
+  height: 0.55rem;
+  background: var(--game-ground-deep);
+  border: 2px solid var(--game-ground-dark);
+  border-radius: 50%;
+  box-shadow: 0 0.15rem 0 rgb(36 69 50 / 18%);
+}
+
+.target-button:hover:not(:disabled) .target-art {
+  transform: translateY(-0.18rem) rotate(-1deg);
+}
+
+.target-button:active:not(:disabled) .target-art {
+  transform: translateY(0.25rem) scale(0.98);
+}
+
+.target-button:focus-visible {
+  outline: 3px solid var(--game-accent);
+  outline-offset: 4px;
+}
+
+.target-button:disabled {
+  cursor: default;
+}
+
+.target-button--correct .target-art {
+  animation: target-squash 400ms ease-out both;
+}
+
+.target-button--incorrect .target-art {
+  animation: target-wobble 360ms ease-in-out both;
+}
+
+.target-button--correct-answer .target-art {
+  animation: target-reveal 400ms ease-out both;
+}
+
+.target-button--correct + .target-hole,
+.target-button--correct-answer + .target-hole {
+  border-color: var(--success);
+}
+
+.target-button--incorrect + .target-hole {
+  border-color: var(--danger);
+}
+
+.target-button--correct-answer::after {
+  position: absolute;
+  z-index: -1;
+  inset: 0.5rem;
+  content: '';
+  border: 0.25rem solid rgb(255 239 131 / 74%);
+  border-radius: 50%;
+  box-shadow: 0 0 1.1rem rgb(255 239 131 / 80%);
+  animation: target-glow 700ms ease-in-out infinite alternate;
+}
+
+.target-marker {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.35rem;
+  z-index: 4;
+  display: grid;
+  width: 1.65rem;
+  height: 1.65rem;
+  color: var(--game-surface);
+  font-size: 1rem;
+  font-weight: 900;
+  place-items: center;
+  background: var(--success);
+  border: 2px solid var(--game-surface);
+  border-radius: 50%;
+  box-shadow: 0 0.2rem 0 rgb(29 76 49 / 22%);
+}
+
+.target-button--incorrect .target-marker {
+  background: var(--danger);
+}
+
+@keyframes target-squash {
+  0% {
+    transform: translateY(0) scaleY(1);
+  }
+
+  55% {
+    transform: translateY(0.8rem) scaleY(0.78) scaleX(1.08);
+  }
+
+  100% {
+    transform: translateY(0.55rem) scaleY(0.86) scaleX(1.04);
+  }
+}
+
+@keyframes target-pop {
+  from {
+    opacity: 0;
+    transform: translateY(0.45rem) scale(0.9);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes target-wobble {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+
+  25% {
+    transform: rotate(-5deg) translateX(-0.18rem);
+  }
+
+  65% {
+    transform: rotate(4deg) translateX(0.14rem);
+  }
+}
+
+@keyframes target-reveal {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.04);
+  }
+}
+
+@keyframes target-glow {
+  from {
+    opacity: 0.55;
+    transform: scale(0.94);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .target-button .target-art {
+    animation: none;
+    transition: none;
+  }
+
+  .target-button:hover:not(:disabled) .target-art,
+  .target-button:active:not(:disabled) .target-art {
+    transform: none;
+  }
+
+  .target-button--correct .target-art,
+  .target-button--incorrect .target-art,
+  .target-button--correct-answer .target-art,
+  .target-button--correct-answer::after {
+    animation: none;
+  }
+}

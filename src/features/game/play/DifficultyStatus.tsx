@@ -19,9 +19,21 @@ export const DifficultyStatus = ({
       <strong className="difficulty-label">{stage.label}</strong>
     </div>
     <span className="difficulty-progress">
-      {stage.correctHitsToAdvance === null
-        ? 'Final level'
-        : `${correctInStage} / ${stage.correctHitsToAdvance} correct`}
+      {stage.correctHitsToAdvance === null ? (
+        <span className="final-level-badge">Final level</span>
+      ) : (
+        <>
+          <span className="progress-dots" aria-hidden="true">
+            {Array.from({ length: stage.correctHitsToAdvance }, (_, index) => (
+              <span
+                className={`progress-dot${index < correctInStage ? ' progress-dot--filled' : ''}`}
+                key={index}
+              />
+            ))}
+          </span>
+          <span>{`${correctInStage} / ${stage.correctHitsToAdvance} correct`}</span>
+        </>
+      )}
     </span>
   </div>
 )

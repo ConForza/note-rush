@@ -86,7 +86,7 @@ describe('GameScreen', () => {
     expect(getStatValue('Streak')).toBe('0')
     expect(getStatValue('Time')).toBe('30')
     expect(screen.getByText('3 lives remaining')).toBeInTheDocument()
-    expect(container.querySelectorAll('svg')).toHaveLength(1)
+    expect(container.querySelectorAll('.music-staff svg')).toHaveLength(1)
     expect(container.querySelectorAll('.target-slot')).toHaveLength(6)
     expect(screen.getAllByRole('button')).toHaveLength(3)
     expect(screen.getByRole('button', { name: 'Hit C' })).toBeInTheDocument()
@@ -549,7 +549,7 @@ describe('GameScreen', () => {
       'E',
     ])
     expect(screen.getByRole('button', { name: 'Hit A' })).toBeEnabled()
-    expect(container.querySelectorAll('svg')).toHaveLength(1)
+    expect(container.querySelectorAll('.music-staff svg')).toHaveLength(1)
   })
 
   it('does not process a second hit during feedback', () => {

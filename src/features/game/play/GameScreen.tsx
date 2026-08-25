@@ -15,11 +15,12 @@ import {
   type GameRound,
   type GameTarget,
 } from './gameRound'
-import { Target, type TargetVisualState } from './Target'
+import { Target, TargetHole, type TargetVisualState } from './Target'
 import { GameHud } from './GameHud'
 import { GameOverScreen } from './GameOverScreen'
 import { DifficultyStatus } from './DifficultyStatus'
 import { getDifficultyStage } from './gameDifficulty'
+import { WhackNoteMark } from './WhackNoteMark'
 import {
   applyProgressResult,
   createInitialGameProgress,
@@ -523,14 +524,24 @@ export const GameScreen = ({
         : 'Correct!'
       : feedback.type === 'incorrect'
         ? `Not quite — ${round.prompt.pitch.note}`
-        : `Too slow — ${round.prompt.pitch.note}`
+      : `Too slow — ${round.prompt.pitch.note}`
+    : ''
+  const feedbackIcon = feedback
+    ? feedback.type === 'correct'
+      ? '✓'
+      : feedback.type === 'incorrect'
+        ? '×'
+        : '◷'
     : ''
   const targetsBySlot = new Map(round.targets.map((target) => [target.slot, target]))
 
   return (
     <section className="game-card" aria-labelledby="game-title">
       <header className="game-header">
-        <p className="eyebrow">Music note arcade</p>
+        <div className="brand-lockup">
+          <WhackNoteMark />
+          <p className="eyebrow">Music note arcade</p>
+        </div>
         <h1 id="game-title">Whack-a-Note</h1>
         <p className="subtitle">Find the matching note</p>
       </header>
@@ -552,33 +563,37 @@ export const GameScreen = ({
           />
 
           <div className="game-prompt">
-            <MusicStaff
-              prompt={round.prompt}
-              ariaLabel={`Note to identify on ${round.prompt.clef} clef`}
-            />
+            <div className="staff-panel">
+              <MusicStaff
+                prompt={round.prompt}
+                ariaLabel={`Note to identify on ${round.prompt.clef} clef`}
+              />
+            </div>
           </div>
 
           <p className="prompt-instruction">Which note?</p>
 
-          <div className="target-board" role="group" aria-label="Note targets">
-            {GAME_BOARD_SLOTS.map((slot) => {
-              const target = targetsBySlot.get(slot)
+          <div className="target-board-shell">
+            <div className="target-board" role="group" aria-label="Note targets">
+              {GAME_BOARD_SLOTS.map((slot) => {
+                const target = targetsBySlot.get(slot)
 
-              return (
-                <div className="target-slot" data-slot={slot} key={`slot-${slot}`}>
-                  {target ? (
-                    <Target
-                      target={target}
-                      state={getTargetVisualState(target, feedback)}
-                      disabled={feedback !== null}
-                      onHit={handleTargetHit}
-                    />
-                  ) : (
-                    <span className="target-hole" aria-hidden="true" />
-                  )}
-                </div>
-              )
-            })}
+                return (
+                  <div className="target-slot" data-slot={slot} key={`slot-${slot}`}>
+                    {target ? (
+                      <Target
+                        target={target}
+                        state={getTargetVisualState(target, feedback)}
+                        disabled={feedback !== null}
+                        onHit={handleTargetHit}
+                      />
+                    ) : (
+                      <TargetHole />
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           </div>
 
           <p
@@ -587,7 +602,10 @@ export const GameScreen = ({
             aria-live="polite"
             aria-atomic="true"
           >
-            {feedbackMessage}
+            <span className="feedback-icon" aria-hidden="true">
+              {feedbackIcon}
+            </span>
+            <span>{feedbackMessage}</span>
           </p>
           <span className="sr-only">
             {ACTIVE_TARGET_COUNT} note targets are active.

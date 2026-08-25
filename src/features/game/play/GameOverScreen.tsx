@@ -1,6 +1,7 @@
 import { type ReactElement } from 'react'
 import { type GameOverReason } from './GameScreen'
 import { type DifficultyStage } from './gameDifficulty'
+import { WhackNoteMark } from './WhackNoteMark'
 
 export interface GameOverScreenProps {
   score: number
@@ -17,7 +18,11 @@ export const GameOverScreen = ({
   levelReached,
   onRestart,
 }: GameOverScreenProps): ReactElement => (
-  <section className="game-over" aria-labelledby="game-over-title">
+  <section
+    className={`game-over game-over--${reason}`}
+    aria-labelledby="game-over-title"
+  >
+    <WhackNoteMark />
     <p className="eyebrow">Run complete</p>
     <h2 id="game-over-title">Game Over</h2>
     <p className="game-over-reason">

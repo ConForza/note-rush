@@ -26,4 +26,4 @@ npm run build
 
 ## Current project status
 
-Whack-a-Note now includes a timed six-level note-reading progression spanning treble, bass, ledger notes, and mixed-clef arcade play, with score, streaks, lives, missed rounds, game over, and restart. Custom graphics, audio, persistence, menus, and PWA support are still to come.
+Whack-a-Note now includes a timed six-level treble, bass, and mixed-clef arcade progression with original vector target graphics, responsive hit/miss feedback, score, streaks, lives, game over, and restart. Audio, persistence, menus, PWA support, and final device hardening are still to come.

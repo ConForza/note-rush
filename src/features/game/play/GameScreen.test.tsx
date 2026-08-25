@@ -133,6 +133,7 @@ describe('GameScreen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
 
     expect(screen.getByRole('status')).toHaveTextContent('Correct! Level up')
+    expect(screen.getByRole('status')).toHaveClass('game-feedback--level-up')
     expect(screen.getByText('Treble Basics')).toBeInTheDocument()
     expect(screen.getByText('3 / 4 correct')).toBeInTheDocument()
     expect(createRound).toHaveBeenCalledTimes(4)

@@ -597,7 +597,7 @@ export const GameScreen = ({
           </div>
 
           <p
-            className={`game-feedback${feedback ? ` game-feedback--${feedback.type}` : ''}`}
+            className={`game-feedback${feedback ? ` game-feedback--${feedback.type}` : ''}${feedback?.type === 'correct' && feedback.levelUp ? ' game-feedback--level-up' : ''}`}
             role="status"
             aria-live="polite"
             aria-atomic="true"

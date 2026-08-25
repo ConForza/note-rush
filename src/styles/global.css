@@ -512,6 +512,17 @@ h1 {
   background: var(--success);
 }
 
+.game-feedback--level-up {
+  color: var(--game-accent);
+  font-weight: 900;
+}
+
+.game-feedback--level-up .feedback-icon {
+  color: var(--game-ink);
+  background: var(--target-crest);
+  box-shadow: 0 0 0 0.2rem rgb(242 189 93 / 22%);
+}
+
 .game-feedback--incorrect {
   color: var(--danger-text);
 }

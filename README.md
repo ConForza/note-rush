@@ -26,4 +26,4 @@ npm run build
 
 ## Current project status
 
-Whack-a-Note now includes a timed mobile arcade loop with dynamically generated note targets, score, streaks, lives, automatic missed-round handling, game over, and restart. Difficulty progression, custom graphics, audio, persistence, and PWA support are still to come.
+Whack-a-Note now includes a timed six-level note-reading progression spanning treble, bass, ledger notes, and mixed-clef arcade play, with score, streaks, lives, missed rounds, game over, and restart. Custom graphics, audio, persistence, menus, and PWA support are still to come.

@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { type NotePrompt } from '../domain'
 import { GameScreen } from './GameScreen'
+import { type DifficultyStage } from './gameDifficulty'
 import { type GameRound, type GameTarget } from './gameRound'
 
 const prompt = (
@@ -39,6 +40,11 @@ const secondRound = round([
   target(4, 'C', true),
   target(5, 'E', false),
 ])
+
+const bassRound: GameRound = {
+  ...firstRound,
+  prompt: { ...firstRound.prompt, clef: 'bass' },
+}
 
 const getStatValue = (label: string): string => {
   const stat = screen.getByText(label).closest('[data-stat]')
@@ -87,6 +93,9 @@ describe('GameScreen', () => {
     expect(
       screen.getByRole('img', { name: 'Note to identify on treble clef' }),
     ).toBeInTheDocument()
+    expect(screen.getByText('Level 1')).toBeInTheDocument()
+    expect(screen.getByText('Treble Basics')).toBeInTheDocument()
+    expect(screen.getByText('0 / 4 correct')).toBeInTheDocument()
   })
 
   it('updates score, streak, and leaves lives unchanged on a correct hit', () => {
@@ -98,9 +107,170 @@ describe('GameScreen', () => {
     expect(getStatValue('Streak')).toBe('1')
     expect(screen.getByText('3 lives remaining')).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('Correct!')
+    expect(screen.getByText('0 / 4 correct')).toBeInTheDocument()
     screen.getAllByRole('button').forEach((button) => {
       expect(button).toBeDisabled()
     })
+
+    advanceHit()
+
+    expect(screen.getByText('1 / 4 correct')).toBeInTheDocument()
+  })
+
+  it('advances after four correct answers and delays the level switch until feedback ends', () => {
+    const createRound = vi.fn((stage: DifficultyStage): GameRound => {
+      void stage
+      return firstRound
+    })
+    render(<GameScreen createRound={createRound} />)
+
+    for (let index = 0; index < 3; index += 1) {
+      fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
+      advanceHit()
+    }
+
+    expect(screen.getByText('3 / 4 correct')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
+
+    expect(screen.getByRole('status')).toHaveTextContent('Correct! Level up')
+    expect(screen.getByText('Treble Basics')).toBeInTheDocument()
+    expect(screen.getByText('3 / 4 correct')).toBeInTheDocument()
+    expect(createRound).toHaveBeenCalledTimes(4)
+
+    advanceHit()
+
+    expect(screen.getByText('Level 2')).toBeInTheDocument()
+    expect(screen.getByText('Treble Extended')).toBeInTheDocument()
+    expect(screen.getByText('0 / 4 correct')).toBeInTheDocument()
+    expect(createRound).toHaveBeenCalledTimes(5)
+    expect(createRound.mock.calls.at(-1)?.[0].id).toBe('treble-extended')
+  })
+
+  it('preserves level progress after an incorrect answer', () => {
+    render(<GameScreen createRound={() => firstRound} />)
+
+    for (let index = 0; index < 3; index += 1) {
+      fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
+      advanceHit()
+    }
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hit D' }))
+    advanceHit()
+
+    expect(screen.getByText('Treble Basics')).toBeInTheDocument()
+    expect(screen.getByText('3 / 4 correct')).toBeInTheDocument()
+  })
+
+  it('preserves level progress after a missed round', () => {
+    render(<GameScreen createRound={() => firstRound} />)
+
+    for (let index = 0; index < 3; index += 1) {
+      fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
+      advanceHit()
+    }
+
+    act(() => {
+      vi.advanceTimersByTime(3_000)
+      vi.advanceTimersByTime(400)
+    })
+
+    expect(screen.getByText('Treble Basics')).toBeInTheDocument()
+    expect(screen.getByText('3 / 4 correct')).toBeInTheDocument()
+  })
+
+  it('uses the stage-specific round lifetime as difficulty increases', () => {
+    render(<GameScreen createRound={() => firstRound} />)
+
+    for (let index = 0; index < 8; index += 1) {
+      fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
+      advanceHit()
+    }
+
+    expect(screen.getByText('Treble Challenge')).toBeInTheDocument()
+    act(() => {
+      vi.advanceTimersByTime(2_499)
+    })
+    expect(screen.getByRole('status')).not.toHaveTextContent('Too slow')
+
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    expect(screen.getByRole('status')).toHaveTextContent('Too slow — C')
+  })
+
+  it('passes bass stages to the round factory and labels the staff by clef', () => {
+    const createRound = vi.fn((stage: DifficultyStage): GameRound =>
+      stage.level >= 4 ? bassRound : firstRound,
+    )
+    render(<GameScreen createRound={createRound} />)
+
+    for (let index = 0; index < 12; index += 1) {
+      fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
+      advanceHit()
+    }
+
+    expect(screen.getByText('Level 4')).toBeInTheDocument()
+    expect(screen.getByText('Bass Basics')).toBeInTheDocument()
+    expect(
+      screen.getByRole('img', { name: 'Note to identify on bass clef' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('img', { name: /C4/ }),
+    ).not.toBeInTheDocument()
+    expect(createRound).toHaveBeenCalledTimes(13)
+    expect(createRound.mock.calls[0]?.[0].id).toBe('treble-basics')
+    expect(createRound.mock.calls[4]?.[0].id).toBe('treble-extended')
+    expect(createRound.mock.calls[8]?.[0].id).toBe('treble-challenge')
+    expect(createRound.mock.calls[12]?.[0].id).toBe('bass-basics')
+  })
+
+  it('keeps the final level stable after twenty correct answers', () => {
+    const createRound = vi.fn(() => firstRound)
+    render(<GameScreen createRound={createRound} />)
+
+    for (let index = 0; index < 20; index += 1) {
+      fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
+      advanceHit()
+    }
+
+    expect(screen.getByText('Level 6')).toBeInTheDocument()
+    expect(screen.getByText('Mixed Clefs')).toBeInTheDocument()
+    expect(screen.getByText('Final level')).toBeInTheDocument()
+    expect(createRound).toHaveBeenCalledTimes(21)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
+    advanceHit()
+
+    expect(screen.getByText('Level 6')).toBeInTheDocument()
+    expect(screen.getByText('Final level')).toBeInTheDocument()
+    expect(createRound).toHaveBeenCalledTimes(22)
+  })
+
+  it('includes the reached level in game over and resets it on restart', () => {
+    const createRound = vi.fn(() => firstRound)
+    render(<GameScreen createRound={createRound} />)
+
+    for (let index = 0; index < 4; index += 1) {
+      fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
+      advanceHit()
+    }
+
+    expect(screen.getByText('Treble Extended')).toBeInTheDocument()
+
+    for (let index = 0; index < 3; index += 1) {
+      fireEvent.click(screen.getByRole('button', { name: 'Hit D' }))
+      advanceHit()
+    }
+
+    expect(screen.getByRole('heading', { name: 'Game Over' })).toBeInTheDocument()
+    expect(screen.getByText('Level reached')).toBeInTheDocument()
+    expect(screen.getByText('2 — Treble Extended')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Play Again' }))
+
+    expect(screen.getByText('Level 1')).toBeInTheDocument()
+    expect(screen.getByText('Treble Basics')).toBeInTheDocument()
+    expect(screen.getByText('0 / 4 correct')).toBeInTheDocument()
   })
 
   it('refreshes the visible countdown from elapsed wall-clock time', () => {
@@ -155,7 +325,7 @@ describe('GameScreen', () => {
     render(<GameScreen createRound={createRound} />)
 
     act(() => {
-      vi.advanceTimersByTime(2_500)
+      vi.advanceTimersByTime(3_000)
     })
 
     expect(screen.getByRole('status')).toHaveTextContent('Too slow — C')
@@ -188,7 +358,7 @@ describe('GameScreen', () => {
     const clock = (): number => now
     render(<GameScreen createRound={() => firstRound} clock={clock} />)
 
-    now = 2_500
+    now = 3_000
     fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
 
     expect(screen.getByRole('status')).toHaveTextContent('Too slow — C')
@@ -201,11 +371,11 @@ describe('GameScreen', () => {
     render(<GameScreen createRound={createRound} />)
 
     act(() => {
-      vi.advanceTimersByTime(2_500)
+      vi.advanceTimersByTime(3_000)
       vi.advanceTimersByTime(400)
-      vi.advanceTimersByTime(2_500)
+      vi.advanceTimersByTime(3_000)
       vi.advanceTimersByTime(400)
-      vi.advanceTimersByTime(2_500)
+      vi.advanceTimersByTime(3_000)
     })
 
     expect(screen.getByRole('status')).toHaveTextContent('Too slow — C')

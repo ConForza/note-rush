@@ -1,5 +1,4 @@
 export const INITIAL_GAME_TIME_MS = 30_000
-export const ROUND_LIFETIME_MS = 2_500
 export const CORRECT_TIME_BONUS_MS = 1_000
 export const HIT_FEEDBACK_MS = 400
 export const TIMER_REFRESH_MS = 100

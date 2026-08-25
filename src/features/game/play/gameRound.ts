@@ -1,12 +1,14 @@
 import {
   createNotePrompt,
   NATURAL_NOTE_NAMES,
-  type Clef,
   type NoteName,
   type NotePrompt,
-  type PitchRange,
   type RandomSource,
 } from '../domain'
+import {
+  getDifficultyStage,
+  type DifficultyStage,
+} from './gameDifficulty'
 
 export const GAME_BOARD_SLOTS = Object.freeze([0, 1, 2, 3, 4, 5])
 export const ACTIVE_TARGET_COUNT = 3
@@ -23,11 +25,7 @@ export interface GameRound {
   readonly targets: readonly GameTarget[]
 }
 
-const GAME_CLEF: Clef = 'treble'
-const GAME_RANGE: PitchRange = {
-  lowest: { note: 'C', octave: 4 },
-  highest: { note: 'C', octave: 5 },
-}
+export type GameRoundFactory = (stage: DifficultyStage) => GameRound
 
 const getRandomIndex = (length: number, random: RandomSource): number => {
   const value = random()
@@ -88,12 +86,51 @@ export const isCorrectAnswer = (
 export const isCorrectTarget = (target: GameTarget): boolean =>
   target.isCorrect
 
-export const createGamePrompt = (random?: RandomSource): NotePrompt =>
-  createNotePrompt({
-    clef: GAME_CLEF,
-    range: GAME_RANGE,
-    random,
+type StageOrRandom = DifficultyStage | RandomSource
+
+const resolveStageAndRandom = (
+  stageOrRandom: StageOrRandom | undefined,
+  random: RandomSource | undefined,
+): { stage: DifficultyStage; random: RandomSource } => {
+  if (typeof stageOrRandom === 'function') {
+    return {
+      stage: getDifficultyStage(0),
+      random: stageOrRandom,
+    }
+  }
+
+  return {
+    stage: stageOrRandom ?? getDifficultyStage(0),
+    random: random ?? Math.random,
+  }
+}
+
+export function createGamePrompt(
+  stage: DifficultyStage,
+  random?: RandomSource,
+): NotePrompt
+export function createGamePrompt(random?: RandomSource): NotePrompt
+export function createGamePrompt(
+  stageOrRandom: StageOrRandom = getDifficultyStage(0),
+  random?: RandomSource,
+): NotePrompt {
+  const resolved = resolveStageAndRandom(stageOrRandom, random)
+  const promptSpecIndex =
+    resolved.stage.promptPool.length === 1
+      ? 0
+      : getRandomIndex(resolved.stage.promptPool.length, resolved.random)
+  const promptSpec = resolved.stage.promptPool[promptSpecIndex]
+
+  if (!promptSpec) {
+    throw new Error(`Difficulty stage ${resolved.stage.id} has no prompt specifications.`)
+  }
+
+  return createNotePrompt({
+    clef: promptSpec.clef,
+    range: promptSpec.range,
+    random: resolved.random,
   })
+}
 
 export const createGameTargets = (
   prompt: NotePrompt,
@@ -129,11 +166,20 @@ export const createGameTargets = (
     .sort((a, b) => a.slot - b.slot)
 }
 
-export const createGameRound = (random: RandomSource = Math.random): GameRound => {
-  const prompt = createGamePrompt(random)
+export function createGameRound(
+  stage: DifficultyStage,
+  random?: RandomSource,
+): GameRound
+export function createGameRound(random?: RandomSource): GameRound
+export function createGameRound(
+  stageOrRandom: StageOrRandom = getDifficultyStage(0),
+  random?: RandomSource,
+): GameRound {
+  const resolved = resolveStageAndRandom(stageOrRandom, random)
+  const prompt = createGamePrompt(resolved.stage, resolved.random)
 
   return {
     prompt,
-    targets: createGameTargets(prompt, random),
+    targets: createGameTargets(prompt, resolved.random),
   }
 }

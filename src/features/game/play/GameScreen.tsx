@@ -11,12 +11,20 @@ import {
   createGameRound,
   GAME_BOARD_SLOTS,
   isCorrectTarget,
+  type GameRoundFactory,
   type GameRound,
   type GameTarget,
 } from './gameRound'
 import { Target, type TargetVisualState } from './Target'
 import { GameHud } from './GameHud'
 import { GameOverScreen } from './GameOverScreen'
+import { DifficultyStatus } from './DifficultyStatus'
+import { getDifficultyStage } from './gameDifficulty'
+import {
+  applyProgressResult,
+  createInitialGameProgress,
+  type GameProgress,
+} from './gameProgress'
 import {
   addTimeToDeadline,
   CORRECT_TIME_BONUS_MS,
@@ -24,7 +32,6 @@ import {
   getRemainingTime,
   HIT_FEEDBACK_MS,
   INITIAL_GAME_TIME_MS,
-  ROUND_LIFETIME_MS,
   TIMER_REFRESH_MS,
   type ClockSource,
 } from './gameTimer'
@@ -40,6 +47,7 @@ type TimerHandleRef = { current: number | null }
 type RoundFeedback = {
   type: Extract<GameResult, 'correct' | 'incorrect'>
   selectedTargetId: string
+  levelUp: boolean
 } | {
   type: 'miss'
 } | null
@@ -53,7 +61,7 @@ export type GamePhase = 'playing' | 'game-over'
 export type GameOverReason = 'lives' | 'time'
 
 export interface GameScreenProps {
-  createRound?: () => GameRound
+  createRound?: GameRoundFactory
   clock?: ClockSource
 }
 
@@ -97,7 +105,12 @@ export const GameScreen = ({
   createRound = createGameRound,
   clock = Date.now,
 }: GameScreenProps): ReactElement => {
-  const [round, setRound] = useState<GameRound>(() => createRound())
+  const [progress, setProgress] = useState<GameProgress>(
+    createInitialGameProgress,
+  )
+  const [round, setRound] = useState<GameRound>(() =>
+    createRound(getDifficultyStage(0)),
+  )
   const [feedback, setFeedback] = useState<RoundFeedback>(null)
   const [stats, setStats] = useState<GameStats>(createInitialGameStats)
   const [phase, setPhase] = useState<GamePhase>('playing')
@@ -112,6 +125,7 @@ export const GameScreen = ({
 
   const clockRef = useRef<ClockSource>(clock)
   const gameDeadlineRef = useRef(initialGameDeadline)
+  const progressRef = useRef(progress)
   const roundRef = useRef(round)
   const feedbackRef = useRef<RoundFeedback>(null)
   const statsRef = useRef(stats)
@@ -138,6 +152,11 @@ export const GameScreen = ({
 
   const clearGlobalExpiry = useCallback(() => {
     clearTimeoutRef(globalExpiryTimeoutRef)
+  }, [])
+
+  const commitProgress = useCallback((nextProgress: GameProgress): void => {
+    progressRef.current = nextProgress
+    setProgress(nextProgress)
   }, [])
 
   const finishGame = useCallback(
@@ -227,11 +246,12 @@ export const GameScreen = ({
       return
     }
 
-    const nextRound = createRound()
+    const nextStage = getDifficultyStage(progressRef.current.stageIndex)
+    const nextRound = createRound(nextStage)
     const nextRoundId = roundIdRef.current + 1
     const nextRoundDeadline = createGameDeadline(
       clockRef.current(),
-      ROUND_LIFETIME_MS,
+      nextStage.roundLifetimeMs,
     )
 
     roundIdRef.current = nextRoundId
@@ -259,12 +279,17 @@ export const GameScreen = ({
       clearRoundExpiry()
 
       const nextStats = applyRoundResult(statsRef.current, outcome.type)
+      const progressUpdate = applyProgressResult(
+        progressRef.current,
+        outcome.type,
+      )
       const nextFeedback: RoundFeedback =
         outcome.type === 'miss'
           ? { type: 'miss' }
           : {
               type: outcome.type,
               selectedTargetId: outcome.selectedTargetId,
+              levelUp: progressUpdate.advanced,
             }
 
       statsRef.current = nextStats
@@ -286,6 +311,7 @@ export const GameScreen = ({
         transitionTimeoutRef.current = null
         feedbackRef.current = null
         setFeedback(null)
+        commitProgress(progressUpdate.progress)
 
         if (phaseRef.current !== 'playing') {
           return
@@ -313,6 +339,7 @@ export const GameScreen = ({
     },
     [
       clearRoundExpiry,
+      commitProgress,
       finishGame,
       refreshGlobalTimer,
       scheduleGlobalExpiry,
@@ -393,7 +420,9 @@ export const GameScreen = ({
     clearRoundExpiry()
     clearGlobalExpiry()
 
-    const freshRound = createRound()
+    const freshProgress = createInitialGameProgress()
+    const freshStage = getDifficultyStage(freshProgress.stageIndex)
+    const freshRound = createRound(freshStage)
     const freshDeadline = createGameDeadline(
       clockRef.current(),
       INITIAL_GAME_TIME_MS,
@@ -401,7 +430,7 @@ export const GameScreen = ({
     const freshRoundId = roundIdRef.current + 1
     const freshRoundDeadline = createGameDeadline(
       clockRef.current(),
-      ROUND_LIFETIME_MS,
+      freshStage.roundLifetimeMs,
     )
 
     gameDeadlineRef.current = freshDeadline
@@ -409,12 +438,14 @@ export const GameScreen = ({
     roundIdRef.current = freshRoundId
     globalExpiredRef.current = false
     isRoundResolvedRef.current = false
+    progressRef.current = freshProgress
     phaseRef.current = 'playing'
     gameOverReasonRef.current = null
     roundRef.current = freshRound
     feedbackRef.current = null
     statsRef.current = createInitialGameStats()
 
+    setProgress(freshProgress)
     setRound(freshRound)
     setStats(statsRef.current)
     setFeedback(null)
@@ -451,7 +482,7 @@ export const GameScreen = ({
     isRoundResolvedRef.current = false
     roundDeadlineRef.current = createGameDeadline(
       clockRef.current(),
-      ROUND_LIFETIME_MS,
+      getDifficultyStage(progressRef.current.stageIndex).roundLifetimeMs,
     )
 
     startGlobalRefresh()
@@ -484,9 +515,12 @@ export const GameScreen = ({
     startGlobalRefresh,
   ])
 
+  const currentStage = getDifficultyStage(progress.stageIndex)
   const feedbackMessage = feedback
     ? feedback.type === 'correct'
-      ? 'Correct!'
+      ? feedback.levelUp
+        ? 'Correct! Level up'
+        : 'Correct!'
       : feedback.type === 'incorrect'
         ? `Not quite — ${round.prompt.pitch.note}`
         : `Too slow — ${round.prompt.pitch.note}`
@@ -506,16 +540,21 @@ export const GameScreen = ({
           score={stats.score}
           bestStreak={stats.bestStreak}
           reason={gameOverReason ?? 'time'}
+          levelReached={currentStage}
           onRestart={handleRestart}
         />
       ) : (
         <>
           <GameHud stats={stats} remainingTimeMs={remainingTimeMs} />
+          <DifficultyStatus
+            stage={currentStage}
+            correctInStage={progress.correctInStage}
+          />
 
           <div className="game-prompt">
             <MusicStaff
               prompt={round.prompt}
-              ariaLabel="Note to identify on treble clef"
+              ariaLabel={`Note to identify on ${round.prompt.clef} clef`}
             />
           </div>
 

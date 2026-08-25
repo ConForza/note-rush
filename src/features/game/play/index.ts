@@ -10,6 +10,18 @@ export {
   type GameOverScreenProps,
 } from './GameOverScreen'
 export {
+  DifficultyStatus,
+  type DifficultyStatusProps,
+} from './DifficultyStatus'
+export {
+  CORRECT_HITS_TO_ADVANCE,
+  DIFFICULTY_STAGES,
+  getDifficultyStage,
+  type DifficultyStage,
+  type DifficultyStageId,
+  type StagePromptSpec,
+} from './gameDifficulty'
+export {
   ACTIVE_TARGET_COUNT,
   createGamePrompt,
   createGameRound,
@@ -19,6 +31,7 @@ export {
   isCorrectTarget,
   sampleWithoutReplacement,
   type GameRound,
+  type GameRoundFactory,
   type GameTarget,
 } from './gameRound'
 export {
@@ -32,6 +45,12 @@ export {
   type GameStats,
 } from './gameStats'
 export {
+  applyProgressResult,
+  createInitialGameProgress,
+  type GameProgress,
+  type ProgressUpdate,
+} from './gameProgress'
+export {
   addTimeToDeadline,
   CORRECT_TIME_BONUS_MS,
   createGameDeadline,
@@ -39,7 +58,6 @@ export {
   getRemainingTime,
   HIT_FEEDBACK_MS,
   INITIAL_GAME_TIME_MS,
-  ROUND_LIFETIME_MS,
   TIMER_REFRESH_MS,
   type ClockSource,
 } from './gameTimer'

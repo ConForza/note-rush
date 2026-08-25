@@ -15,11 +15,17 @@ import {
   type GameRound,
   type GameTarget,
 } from './gameRound'
-import { Target, TargetHole, type TargetVisualState } from './Target'
+import {
+  Target,
+  TargetHole,
+  TARGET_EMERGENCE_DURATION_MS,
+  TARGET_EMERGENCE_STAGGER_MS,
+  type TargetVisualState,
+} from './Target'
 import { GameHud } from './GameHud'
 import { GameOverScreen } from './GameOverScreen'
 import { DifficultyStatus } from './DifficultyStatus'
-import { getDifficultyStage } from './gameDifficulty'
+import { getDifficultyStage, type DifficultyStage } from './gameDifficulty'
 import { WhackNoteMark } from './WhackNoteMark'
 import {
   applyProgressResult,
@@ -58,6 +64,48 @@ type RoundOutcome =
   | { type: 'incorrect'; selectedTargetId: string }
   | { type: 'miss' }
 
+const ROUND_ANTICIPATION_MIN_MS = 180
+const ROUND_ANTICIPATION_MAX_MS = 260
+export const ROUND_READY_DELAY_MAX_MS =
+  ROUND_ANTICIPATION_MAX_MS +
+  (ACTIVE_TARGET_COUNT - 1) * TARGET_EMERGENCE_STAGGER_MS +
+  TARGET_EMERGENCE_DURATION_MS
+
+type TargetEmergenceDelays = Readonly<Record<string, number>>
+
+const prefersReducedMotion = (): boolean =>
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+const createTargetEmergenceDelays = (
+  targets: readonly GameTarget[],
+): TargetEmergenceDelays => {
+  if (prefersReducedMotion()) {
+    return Object.fromEntries(targets.map((target) => [target.id, 0]))
+  }
+
+  const anticipationDelay =
+    ROUND_ANTICIPATION_MIN_MS +
+    Math.floor(
+      Math.random() *
+        (ROUND_ANTICIPATION_MAX_MS - ROUND_ANTICIPATION_MIN_MS + 1),
+    )
+  const orderedTargets = [...targets].sort(() => Math.random() - 0.5)
+
+  return Object.fromEntries(
+    orderedTargets.map((target, index) => [
+      target.id,
+      anticipationDelay + index * TARGET_EMERGENCE_STAGGER_MS,
+    ]),
+  )
+}
+
+const getTargetReadyDelay = (): number =>
+  prefersReducedMotion()
+    ? 0
+    : ROUND_READY_DELAY_MAX_MS
+
 export type GamePhase = 'playing' | 'game-over'
 export type GameOverReason = 'lives' | 'time'
 
@@ -88,18 +136,22 @@ const getTargetVisualState = (
     return 'idle'
   }
 
-  if (
-    feedback.type !== 'miss' &&
-    target.id === feedback.selectedTargetId
-  ) {
-    return feedback.type === 'correct' ? 'correct' : 'incorrect'
+  if (feedback.type === 'correct') {
+    return target.id === feedback.selectedTargetId ? 'correct' : 'retreating'
   }
 
-  if (feedback.type !== 'correct' && isCorrectTarget(target)) {
+  if (
+    feedback.type === 'incorrect' &&
+    target.id === feedback.selectedTargetId
+  ) {
+    return 'incorrect'
+  }
+
+  if (isCorrectTarget(target)) {
     return 'correct-answer'
   }
 
-  return 'idle'
+  return 'retreating'
 }
 
 export const GameScreen = ({
@@ -113,6 +165,10 @@ export const GameScreen = ({
     createRound(getDifficultyStage(0)),
   )
   const [feedback, setFeedback] = useState<RoundFeedback>(null)
+  const [targetAnimationKey, setTargetAnimationKey] = useState(0)
+  const [targetEmergenceDelays, setTargetEmergenceDelays] = useState<TargetEmergenceDelays>(() =>
+    createTargetEmergenceDelays(round.targets),
+  )
   const [stats, setStats] = useState<GameStats>(createInitialGameStats)
   const [phase, setPhase] = useState<GamePhase>('playing')
   const [gameOverReason, setGameOverReason] =
@@ -135,9 +191,12 @@ export const GameScreen = ({
   const globalExpiredRef = useRef(false)
   const roundIdRef = useRef(0)
   const roundDeadlineRef = useRef(0)
+  const roundReadyRef = useRef(false)
+  const globalPauseStartedRef = useRef<number | null>(null)
   const isRoundResolvedRef = useRef(false)
 
   const transitionTimeoutRef = useRef<number | null>(null)
+  const roundReadyTimeoutRef = useRef<number | null>(null)
   const roundExpiryTimeoutRef = useRef<number | null>(null)
   const globalExpiryTimeoutRef = useRef<number | null>(null)
   const globalRefreshIntervalRef = useRef<number | null>(null)
@@ -149,6 +208,10 @@ export const GameScreen = ({
 
   const clearRoundExpiry = useCallback(() => {
     clearTimeoutRef(roundExpiryTimeoutRef)
+  }, [])
+
+  const clearRoundReady = useCallback(() => {
+    clearTimeoutRef(roundReadyTimeoutRef)
   }, [])
 
   const clearGlobalExpiry = useCallback(() => {
@@ -168,17 +231,26 @@ export const GameScreen = ({
 
       phaseRef.current = 'game-over'
       gameOverReasonRef.current = reason
+      globalPauseStartedRef.current = null
+      clearRoundReady()
       clearRoundExpiry()
       clearGlobalExpiry()
       clearIntervalRef(globalRefreshIntervalRef)
       setPhase('game-over')
       setGameOverReason(reason)
     },
-    [clearGlobalExpiry, clearRoundExpiry],
+    [clearGlobalExpiry, clearRoundExpiry, clearRoundReady],
   )
 
   const refreshGlobalTimer = useCallback((): void => {
     if (phaseRef.current === 'game-over') {
+      return
+    }
+
+    if (globalPauseStartedRef.current !== null) {
+      setRemainingTimeMs(
+        getRemainingTime(gameDeadlineRef.current, clockRef.current()),
+      )
       return
     }
 
@@ -200,6 +272,10 @@ export const GameScreen = ({
   const scheduleGlobalExpiry = useCallback((): void => {
     clearGlobalExpiry()
 
+    if (globalPauseStartedRef.current !== null) {
+      return
+    }
+
     const remaining = getRemainingTime(
       gameDeadlineRef.current,
       clockRef.current(),
@@ -213,11 +289,41 @@ export const GameScreen = ({
 
   const startGlobalRefresh = useCallback((): void => {
     clearIntervalRef(globalRefreshIntervalRef)
+
+    if (globalPauseStartedRef.current !== null) {
+      return
+    }
+
     globalRefreshIntervalRef.current = window.setInterval(
       refreshGlobalTimer,
       TIMER_REFRESH_MS,
     )
   }, [refreshGlobalTimer])
+
+  const pauseGlobalTimer = useCallback((): void => {
+    if (globalPauseStartedRef.current !== null) {
+      return
+    }
+
+    globalPauseStartedRef.current = clockRef.current()
+    clearGlobalExpiry()
+    clearIntervalRef(globalRefreshIntervalRef)
+  }, [clearGlobalExpiry])
+
+  const resumeGlobalTimer = useCallback((): void => {
+    const pauseStarted = globalPauseStartedRef.current
+
+    if (pauseStarted === null) {
+      return
+    }
+
+    const pausedDuration = Math.max(0, clockRef.current() - pauseStarted)
+    gameDeadlineRef.current += pausedDuration
+    globalPauseStartedRef.current = null
+    refreshGlobalTimer()
+    startGlobalRefresh()
+    scheduleGlobalExpiry()
+  }, [refreshGlobalTimer, scheduleGlobalExpiry, startGlobalRefresh])
 
   const scheduleRoundExpiry = useCallback(
     (roundId: number, deadline: number): void => {
@@ -230,6 +336,46 @@ export const GameScreen = ({
       }, remaining)
     },
     [clearRoundExpiry],
+  )
+
+  const startRoundPresentation = useCallback(
+    (
+      roundId: number,
+      stage: DifficultyStage,
+    ): void => {
+      clearRoundReady()
+      clearRoundExpiry()
+      roundReadyRef.current = false
+      roundDeadlineRef.current = 0
+      pauseGlobalTimer()
+
+      roundReadyTimeoutRef.current = window.setTimeout(() => {
+        roundReadyTimeoutRef.current = null
+
+        if (
+          phaseRef.current !== 'playing' ||
+          feedbackRef.current !== null ||
+          roundIdRef.current !== roundId
+        ) {
+          return
+        }
+
+        roundReadyRef.current = true
+        roundDeadlineRef.current = createGameDeadline(
+          clockRef.current(),
+          stage.roundLifetimeMs,
+        )
+        scheduleRoundExpiry(roundId, roundDeadlineRef.current)
+        resumeGlobalTimer()
+      }, getTargetReadyDelay())
+    },
+    [
+      clearRoundExpiry,
+      clearRoundReady,
+      pauseGlobalTimer,
+      resumeGlobalTimer,
+      scheduleRoundExpiry,
+    ],
   )
 
   const startNextRound = useCallback((): void => {
@@ -250,20 +396,20 @@ export const GameScreen = ({
     const nextStage = getDifficultyStage(progressRef.current.stageIndex)
     const nextRound = createRound(nextStage)
     const nextRoundId = roundIdRef.current + 1
-    const nextRoundDeadline = createGameDeadline(
-      clockRef.current(),
-      nextStage.roundLifetimeMs,
-    )
+    const nextEmergenceDelays = createTargetEmergenceDelays(nextRound.targets)
 
     roundIdRef.current = nextRoundId
-    roundDeadlineRef.current = nextRoundDeadline
+    roundReadyRef.current = false
+    roundDeadlineRef.current = 0
     isRoundResolvedRef.current = false
     roundRef.current = nextRound
     feedbackRef.current = null
     setRound(nextRound)
+    setTargetAnimationKey((key) => key + 1)
+    setTargetEmergenceDelays(nextEmergenceDelays)
     setFeedback(null)
-    scheduleRoundExpiry(nextRoundId, nextRoundDeadline)
-  }, [createRound, finishGame, scheduleRoundExpiry])
+    startRoundPresentation(nextRoundId, nextStage)
+  }, [createRound, finishGame, startRoundPresentation])
 
   const resolveRound = useCallback(
     (outcome: RoundOutcome, expectedRoundId: number): void => {
@@ -277,7 +423,10 @@ export const GameScreen = ({
       }
 
       isRoundResolvedRef.current = true
+      clearRoundReady()
       clearRoundExpiry()
+      roundReadyRef.current = false
+      pauseGlobalTimer()
 
       const nextStats = applyRoundResult(statsRef.current, outcome.type)
       const progressUpdate = applyProgressResult(
@@ -304,8 +453,9 @@ export const GameScreen = ({
           CORRECT_TIME_BONUS_MS,
         )
         globalExpiredRef.current = false
-        refreshGlobalTimer()
-        scheduleGlobalExpiry()
+        setRemainingTimeMs(
+          getRemainingTime(gameDeadlineRef.current, clockRef.current()),
+        )
       }
 
       transitionTimeoutRef.current = window.setTimeout(() => {
@@ -340,10 +490,10 @@ export const GameScreen = ({
     },
     [
       clearRoundExpiry,
+      clearRoundReady,
       commitProgress,
       finishGame,
-      refreshGlobalTimer,
-      scheduleGlobalExpiry,
+      pauseGlobalTimer,
       startNextRound,
     ],
   )
@@ -402,7 +552,10 @@ export const GameScreen = ({
         return
       }
 
-      if (getRemainingTime(roundDeadlineRef.current, now) === 0) {
+      if (
+        roundReadyRef.current &&
+        getRemainingTime(roundDeadlineRef.current, now) === 0
+      ) {
         resolveRound({ type: 'miss' }, roundIdRef.current)
         return
       }
@@ -418,25 +571,25 @@ export const GameScreen = ({
 
   const handleRestart = useCallback((): void => {
     clearTransition()
+    clearRoundReady()
     clearRoundExpiry()
     clearGlobalExpiry()
+    globalPauseStartedRef.current = null
 
     const freshProgress = createInitialGameProgress()
     const freshStage = getDifficultyStage(freshProgress.stageIndex)
     const freshRound = createRound(freshStage)
+    const freshEmergenceDelays = createTargetEmergenceDelays(freshRound.targets)
     const freshDeadline = createGameDeadline(
       clockRef.current(),
       INITIAL_GAME_TIME_MS,
     )
     const freshRoundId = roundIdRef.current + 1
-    const freshRoundDeadline = createGameDeadline(
-      clockRef.current(),
-      freshStage.roundLifetimeMs,
-    )
 
     gameDeadlineRef.current = freshDeadline
-    roundDeadlineRef.current = freshRoundDeadline
     roundIdRef.current = freshRoundId
+    roundReadyRef.current = false
+    roundDeadlineRef.current = 0
     globalExpiredRef.current = false
     isRoundResolvedRef.current = false
     progressRef.current = freshProgress
@@ -448,6 +601,8 @@ export const GameScreen = ({
 
     setProgress(freshProgress)
     setRound(freshRound)
+    setTargetAnimationKey((key) => key + 1)
+    setTargetEmergenceDelays(freshEmergenceDelays)
     setStats(statsRef.current)
     setFeedback(null)
     setPhase('playing')
@@ -456,17 +611,14 @@ export const GameScreen = ({
       getRemainingTime(freshDeadline, clockRef.current()),
     )
 
-    startGlobalRefresh()
-    scheduleRoundExpiry(freshRoundId, freshRoundDeadline)
-    scheduleGlobalExpiry()
+    startRoundPresentation(freshRoundId, freshStage)
   }, [
     clearGlobalExpiry,
     clearRoundExpiry,
+    clearRoundReady,
     clearTransition,
     createRound,
-    scheduleGlobalExpiry,
-    scheduleRoundExpiry,
-    startGlobalRefresh,
+    startRoundPresentation,
   ])
 
   useEffect(() => {
@@ -480,15 +632,14 @@ export const GameScreen = ({
   useEffect(() => {
     globalExpiredRef.current = false
     roundIdRef.current = 1
+    roundReadyRef.current = false
     isRoundResolvedRef.current = false
-    roundDeadlineRef.current = createGameDeadline(
-      clockRef.current(),
-      getDifficultyStage(progressRef.current.stageIndex).roundLifetimeMs,
+    roundDeadlineRef.current = 0
+    pauseGlobalTimer()
+    startRoundPresentation(
+      1,
+      getDifficultyStage(progressRef.current.stageIndex),
     )
-
-    startGlobalRefresh()
-    scheduleGlobalExpiry()
-    scheduleRoundExpiry(1, roundDeadlineRef.current)
     refreshGlobalTimer()
 
     const handleVisibilityChange = (): void => {
@@ -499,6 +650,7 @@ export const GameScreen = ({
 
     return () => {
       clearTransition()
+      clearRoundReady()
       clearRoundExpiry()
       clearGlobalExpiry()
       clearIntervalRef(globalRefreshIntervalRef)
@@ -509,11 +661,11 @@ export const GameScreen = ({
   }, [
     clearGlobalExpiry,
     clearRoundExpiry,
+    clearRoundReady,
     clearTransition,
+    pauseGlobalTimer,
     refreshGlobalTimer,
-    scheduleGlobalExpiry,
-    scheduleRoundExpiry,
-    startGlobalRefresh,
+    startRoundPresentation,
   ])
 
   const currentStage = getDifficultyStage(progress.stageIndex)
@@ -582,9 +734,11 @@ export const GameScreen = ({
                   <div className="target-slot" data-slot={slot} key={`slot-${slot}`}>
                     {target ? (
                       <Target
+                        key={`${targetAnimationKey}-${target.id}`}
                         target={target}
                         state={getTargetVisualState(target, feedback)}
                         disabled={feedback !== null}
+                        emergenceDelayMs={targetEmergenceDelays[target.id] ?? 0}
                         onHit={handleTargetHit}
                       />
                     ) : (

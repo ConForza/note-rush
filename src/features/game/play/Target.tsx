@@ -1,18 +1,23 @@
-import { type ReactElement } from 'react'
+import { type CSSProperties, type ReactElement } from 'react'
 import { type GameTarget } from './gameRound'
 import { WhackCreature } from './WhackCreature'
 import './Target.css'
+
+export const TARGET_EMERGENCE_DURATION_MS = 280
+export const TARGET_EMERGENCE_STAGGER_MS = 60
 
 export type TargetVisualState =
   | 'idle'
   | 'correct'
   | 'incorrect'
   | 'correct-answer'
+  | 'retreating'
 
 export interface TargetProps {
   target: GameTarget
   state: TargetVisualState
   disabled: boolean
+  emergenceDelayMs?: number
   onHit: (target: GameTarget) => void
 }
 
@@ -45,6 +50,7 @@ export const Target = ({
   target,
   state,
   disabled,
+  emergenceDelayMs = 0,
   onHit,
 }: TargetProps): ReactElement => {
   const className = [
@@ -53,6 +59,10 @@ export const Target = ({
   ]
     .filter(Boolean)
     .join(' ')
+  const hasMarker =
+    state === 'correct' ||
+    state === 'incorrect' ||
+    state === 'correct-answer'
 
   return (
     <>
@@ -60,11 +70,16 @@ export const Target = ({
         type="button"
         className={className}
         disabled={disabled}
+        style={
+          {
+            '--target-emergence-delay': `${emergenceDelayMs}ms`,
+          } as CSSProperties
+        }
         aria-label={getTargetAccessibleName(target, state)}
         onClick={() => onHit(target)}
       >
         <WhackCreature note={target.note} />
-        {state !== 'idle' && (
+        {hasMarker && (
           <span className="target-marker" aria-hidden="true">
             {state === 'incorrect' ? '×' : '✓'}
           </span>

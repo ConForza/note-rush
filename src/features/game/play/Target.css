@@ -55,8 +55,10 @@
 }
 
 .target-button .target-art {
-  animation: target-pop 180ms ease-out both;
+  animation: target-emerge 280ms cubic-bezier(0.22, 0.8, 0.3, 1) both;
+  animation-delay: var(--target-emergence-delay, 0ms);
   transition: transform 120ms ease;
+  transform-origin: center bottom;
 }
 
 .target-svg {
@@ -171,14 +173,22 @@
 
 .target-button--correct .target-art {
   animation: target-squash 400ms ease-out both;
+  animation-delay: 0ms;
 }
 
 .target-button--incorrect .target-art {
   animation: target-wobble 360ms ease-in-out both;
+  animation-delay: 0ms;
 }
 
 .target-button--correct-answer .target-art {
   animation: target-reveal 400ms ease-out both;
+  animation-delay: 0ms;
+}
+
+.target-button--retreating .target-art {
+  animation: target-retreat 240ms ease-in both;
+  animation-delay: 0ms;
 }
 
 .target-button--correct + .target-hole,
@@ -237,15 +247,23 @@
   }
 }
 
-@keyframes target-pop {
+@keyframes target-emerge {
   from {
-    opacity: 0;
-    transform: translateY(0.45rem) scale(0.9);
+    transform: translateY(1.7rem);
   }
 
   to {
-    opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes target-retreat {
+  from {
+    transform: translateY(0);
+  }
+
+  to {
+    transform: translateY(1.7rem);
   }
 }
 
@@ -301,7 +319,16 @@
   .target-button--correct .target-art,
   .target-button--incorrect .target-art,
   .target-button--correct-answer .target-art,
+  .target-button--retreating .target-art,
   .target-button--correct-answer::after {
     animation: none;
+  }
+
+  .target-button--correct .target-art {
+    transform: translateY(0.55rem) scaleY(0.86) scaleX(1.04);
+  }
+
+  .target-button--retreating .target-art {
+    transform: translateY(1.7rem);
   }
 }

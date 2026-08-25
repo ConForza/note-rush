@@ -45,4 +45,13 @@ describe('Target graphics', () => {
     expect(screen.getByRole('button', { name })).toHaveClass(className)
     expect(document.querySelector('.target-marker')).toHaveTextContent(marker)
   })
+
+  it('renders a retreating decoy without a result marker', () => {
+    renderTarget('retreating')
+
+    expect(screen.getByRole('button', { name: 'Hit C' })).toHaveClass(
+      'target-button--retreating',
+    )
+    expect(document.querySelector('.target-marker')).not.toBeInTheDocument()
+  })
 })

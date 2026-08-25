@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { type NotePrompt } from '../domain'
-import { GameScreen } from './GameScreen'
+import { GameScreen, ROUND_READY_DELAY_MAX_MS } from './GameScreen'
 import { type DifficultyStage } from './gameDifficulty'
 import { type GameRound, type GameTarget } from './gameRound'
 
@@ -57,9 +57,21 @@ const getStatValue = (label: string): string => {
   return value.textContent ?? ''
 }
 
+const advanceRoundStart = (): void => {
+  act(() => {
+    vi.advanceTimersByTime(ROUND_READY_DELAY_MAX_MS)
+  })
+}
+
+const renderReady = (ui: Parameters<typeof render>[0]) => {
+  const result = render(ui)
+  advanceRoundStart()
+  return result
+}
+
 const advanceHit = (): void => {
   act(() => {
-    vi.advanceTimersByTime(400)
+    vi.advanceTimersByTime(400 + ROUND_READY_DELAY_MAX_MS)
   })
 }
 
@@ -98,8 +110,45 @@ describe('GameScreen', () => {
     expect(screen.getByText('0 / 4 correct')).toBeInTheDocument()
   })
 
-  it('updates score, streak, and leaves lives unchanged on a correct hit', () => {
+  it('holds the global clock through anticipation and feedback', () => {
     render(<GameScreen createRound={() => firstRound} />)
+
+    act(() => {
+      vi.advanceTimersByTime(500)
+    })
+    expect(getStatValue('Time')).toBe('30')
+
+    act(() => {
+      vi.advanceTimersByTime(160)
+    })
+    expect(getStatValue('Time')).toBe('30')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
+    expect(getStatValue('Time')).toBe('31')
+
+    act(() => {
+      vi.advanceTimersByTime(400)
+    })
+    expect(getStatValue('Time')).toBe('31')
+  })
+
+  it('starts the round deadline only after the emergence boundary', () => {
+    const createRound = vi.fn(() => firstRound)
+    render(<GameScreen createRound={createRound} />)
+
+    act(() => {
+      vi.advanceTimersByTime(3_000)
+    })
+    expect(screen.getByRole('status')).not.toHaveTextContent('Too slow')
+
+    act(() => {
+      vi.advanceTimersByTime(ROUND_READY_DELAY_MAX_MS)
+    })
+    expect(screen.getByRole('status')).toHaveTextContent('Too slow — C')
+  })
+
+  it('updates score, streak, and leaves lives unchanged on a correct hit', () => {
+    renderReady(<GameScreen createRound={() => firstRound} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
 
@@ -108,6 +157,15 @@ describe('GameScreen', () => {
     expect(screen.getByText('3 lives remaining')).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('Correct!')
     expect(screen.getByText('0 / 4 correct')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Hit C, correct' })).toHaveClass(
+      'target-button--correct',
+    )
+    expect(screen.getByRole('button', { name: 'Hit D' })).toHaveClass(
+      'target-button--retreating',
+    )
+    expect(screen.getByRole('button', { name: 'Hit G' })).toHaveClass(
+      'target-button--retreating',
+    )
     screen.getAllByRole('button').forEach((button) => {
       expect(button).toBeDisabled()
     })
@@ -122,7 +180,7 @@ describe('GameScreen', () => {
       void stage
       return firstRound
     })
-    render(<GameScreen createRound={createRound} />)
+    renderReady(<GameScreen createRound={createRound} />)
 
     for (let index = 0; index < 3; index += 1) {
       fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
@@ -148,7 +206,7 @@ describe('GameScreen', () => {
   })
 
   it('preserves level progress after an incorrect answer', () => {
-    render(<GameScreen createRound={() => firstRound} />)
+    renderReady(<GameScreen createRound={() => firstRound} />)
 
     for (let index = 0; index < 3; index += 1) {
       fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
@@ -163,7 +221,7 @@ describe('GameScreen', () => {
   })
 
   it('preserves level progress after a missed round', () => {
-    render(<GameScreen createRound={() => firstRound} />)
+    renderReady(<GameScreen createRound={() => firstRound} />)
 
     for (let index = 0; index < 3; index += 1) {
       fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
@@ -180,7 +238,7 @@ describe('GameScreen', () => {
   })
 
   it('uses the stage-specific round lifetime as difficulty increases', () => {
-    render(<GameScreen createRound={() => firstRound} />)
+    renderReady(<GameScreen createRound={() => firstRound} />)
 
     for (let index = 0; index < 8; index += 1) {
       fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
@@ -203,7 +261,7 @@ describe('GameScreen', () => {
     const createRound = vi.fn((stage: DifficultyStage): GameRound =>
       stage.level >= 4 ? bassRound : firstRound,
     )
-    render(<GameScreen createRound={createRound} />)
+    renderReady(<GameScreen createRound={createRound} />)
 
     for (let index = 0; index < 12; index += 1) {
       fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
@@ -227,7 +285,7 @@ describe('GameScreen', () => {
 
   it('keeps the final level stable after twenty correct answers', () => {
     const createRound = vi.fn(() => firstRound)
-    render(<GameScreen createRound={createRound} />)
+    renderReady(<GameScreen createRound={createRound} />)
 
     for (let index = 0; index < 20; index += 1) {
       fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
@@ -249,7 +307,7 @@ describe('GameScreen', () => {
 
   it('includes the reached level in game over and resets it on restart', () => {
     const createRound = vi.fn(() => firstRound)
-    render(<GameScreen createRound={createRound} />)
+    renderReady(<GameScreen createRound={createRound} />)
 
     for (let index = 0; index < 4; index += 1) {
       fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
@@ -275,7 +333,7 @@ describe('GameScreen', () => {
   })
 
   it('refreshes the visible countdown from elapsed wall-clock time', () => {
-    render(<GameScreen createRound={() => firstRound} />)
+    renderReady(<GameScreen createRound={() => firstRound} />)
 
     expect(getStatValue('Time')).toBe('30')
 
@@ -293,7 +351,7 @@ describe('GameScreen', () => {
   it('adds one second to the absolute deadline for a correct answer', () => {
     let now = 0
     const clock = (): number => now
-    render(<GameScreen createRound={() => firstRound} clock={clock} />)
+    renderReady(<GameScreen createRound={() => firstRound} clock={clock} />)
 
     now = 1_000
     act(() => {
@@ -308,7 +366,7 @@ describe('GameScreen', () => {
   it('does not change the deadline for an incorrect answer', () => {
     let now = 0
     const clock = (): number => now
-    render(<GameScreen createRound={() => firstRound} clock={clock} />)
+    renderReady(<GameScreen createRound={() => firstRound} clock={clock} />)
 
     now = 1_000
     fireEvent.click(screen.getByRole('button', { name: 'Hit D' }))
@@ -323,7 +381,7 @@ describe('GameScreen', () => {
 
   it('resolves an expired round as a miss and reveals the correct target', () => {
     const createRound = vi.fn(() => firstRound)
-    render(<GameScreen createRound={createRound} />)
+    renderReady(<GameScreen createRound={createRound} />)
 
     act(() => {
       vi.advanceTimersByTime(3_000)
@@ -339,6 +397,13 @@ describe('GameScreen', () => {
     expect(screen.getByRole('button', { name: 'C, correct answer' })).toHaveClass(
       'target-button--correct-answer',
     )
+    expect(screen.getByRole('button', { name: 'Hit D' })).toHaveClass(
+      'target-button--retreating',
+    )
+    expect(screen.getByRole('button', { name: 'Hit G' })).toHaveClass(
+      'target-button--retreating',
+    )
+    expect(screen.queryByRole('button', { name: 'Hit D, incorrect' })).not.toBeInTheDocument()
     expect(createRound).toHaveBeenCalledTimes(1)
 
     act(() => {
@@ -357,7 +422,7 @@ describe('GameScreen', () => {
   it('turns a stale hit after the round deadline into a miss', () => {
     let now = 0
     const clock = (): number => now
-    render(<GameScreen createRound={() => firstRound} clock={clock} />)
+    renderReady(<GameScreen createRound={() => firstRound} clock={clock} />)
 
     now = 3_000
     fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
@@ -369,13 +434,13 @@ describe('GameScreen', () => {
 
   it('shows miss feedback before game over when the final life expires', () => {
     const createRound = vi.fn(() => firstRound)
-    render(<GameScreen createRound={createRound} />)
+    renderReady(<GameScreen createRound={createRound} />)
 
     act(() => {
       vi.advanceTimersByTime(3_000)
-      vi.advanceTimersByTime(400)
+      vi.advanceTimersByTime(400 + ROUND_READY_DELAY_MAX_MS)
       vi.advanceTimersByTime(3_000)
-      vi.advanceTimersByTime(400)
+      vi.advanceTimersByTime(400 + ROUND_READY_DELAY_MAX_MS)
       vi.advanceTimersByTime(3_000)
     })
 
@@ -395,7 +460,7 @@ describe('GameScreen', () => {
   it('shows time game over when the absolute global deadline is reached', () => {
     let now = 0
     const clock = (): number => now
-    render(<GameScreen createRound={() => firstRound} clock={clock} />)
+    renderReady(<GameScreen createRound={() => firstRound} clock={clock} />)
 
     now = 30_000
     act(() => {
@@ -411,7 +476,7 @@ describe('GameScreen', () => {
     let now = 0
     const clock = (): number => now
     const createRound = vi.fn(() => firstRound)
-    render(<GameScreen createRound={createRound} clock={clock} />)
+    renderReady(<GameScreen createRound={createRound} clock={clock} />)
 
     now = 1_000
     fireEvent.click(screen.getByRole('button', { name: 'Hit D' }))
@@ -435,7 +500,7 @@ describe('GameScreen', () => {
 
   it('lets the first event win the hit-versus-expiry race', () => {
     const createRound = vi.fn(() => firstRound)
-    render(<GameScreen createRound={createRound} />)
+    renderReady(<GameScreen createRound={createRound} />)
 
     act(() => {
       vi.advanceTimersByTime(2_499)
@@ -458,7 +523,7 @@ describe('GameScreen', () => {
     let now = 0
     const clock = (): number => now
     const createRound = vi.fn(() => firstRound)
-    render(<GameScreen createRound={createRound} clock={clock} />)
+    renderReady(<GameScreen createRound={createRound} clock={clock} />)
 
     now = 30_000
     act(() => {
@@ -470,6 +535,8 @@ describe('GameScreen', () => {
     expect(getStatValue('Score')).toBe('0')
     expect(screen.getByText('3 lives remaining')).toBeInTheDocument()
 
+    advanceRoundStart()
+
     now = 31_000
     act(() => {
       vi.advanceTimersByTime(100)
@@ -479,7 +546,7 @@ describe('GameScreen', () => {
   })
 
   it('shows an incorrect target, resets streak, and removes one life', () => {
-    render(<GameScreen createRound={() => firstRound} />)
+    renderReady(<GameScreen createRound={() => firstRound} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Hit D' }))
 
@@ -493,11 +560,14 @@ describe('GameScreen', () => {
     expect(
       screen.getByRole('button', { name: 'C, correct answer' }),
     ).toHaveClass('target-button--correct-answer')
+    expect(screen.getByRole('button', { name: 'Hit G' })).toHaveClass(
+      'target-button--retreating',
+    )
   })
 
   it('applies the previous streak bonus across consecutive correct hits', () => {
     const createRound = vi.fn(() => firstRound)
-    render(<GameScreen createRound={createRound} />)
+    renderReady(<GameScreen createRound={createRound} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
     advanceHit()
@@ -511,7 +581,7 @@ describe('GameScreen', () => {
 
   it('resets the streak for post-mistake scoring while preserving best streak', () => {
     const createRound = vi.fn(() => firstRound)
-    render(<GameScreen createRound={createRound} />)
+    renderReady(<GameScreen createRound={createRound} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
     advanceHit()
@@ -536,7 +606,7 @@ describe('GameScreen', () => {
       .fn<() => GameRound>()
       .mockReturnValueOnce(firstRound)
       .mockReturnValueOnce(secondRound)
-    const { container } = render(<GameScreen createRound={createRound} />)
+    const { container } = renderReady(<GameScreen createRound={createRound} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
     advanceHit()
@@ -558,7 +628,7 @@ describe('GameScreen', () => {
       .fn<() => GameRound>()
       .mockReturnValueOnce(firstRound)
       .mockReturnValueOnce(secondRound)
-    render(<GameScreen createRound={createRound} />)
+    renderReady(<GameScreen createRound={createRound} />)
     const correctTarget = screen.getByRole('button', { name: 'Hit C' })
 
     fireEvent.click(screen.getByRole('button', { name: 'Hit D' }))
@@ -575,7 +645,7 @@ describe('GameScreen', () => {
 
   it('keeps one life and continues after a correct hit on the final remaining life', () => {
     const createRound = vi.fn(() => firstRound)
-    render(<GameScreen createRound={createRound} />)
+    renderReady(<GameScreen createRound={createRound} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Hit D' }))
     advanceHit()
@@ -597,7 +667,7 @@ describe('GameScreen', () => {
 
   it('resolves only one final-life loss when a target is hit twice rapidly', () => {
     const createRound = vi.fn(() => firstRound)
-    render(<GameScreen createRound={createRound} />)
+    renderReady(<GameScreen createRound={createRound} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Hit D' }))
     advanceHit()
@@ -620,7 +690,7 @@ describe('GameScreen', () => {
 
   it('shows game over only after the final incorrect-feedback delay', () => {
     const createRound = vi.fn(() => firstRound)
-    render(<GameScreen createRound={createRound} />)
+    renderReady(<GameScreen createRound={createRound} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Hit D' }))
     advanceHit()
@@ -643,7 +713,7 @@ describe('GameScreen', () => {
 
   it('preserves best streak in the game-over summary', () => {
     const createRound = vi.fn(() => firstRound)
-    render(<GameScreen createRound={createRound} />)
+    renderReady(<GameScreen createRound={createRound} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
     advanceHit()
@@ -671,7 +741,7 @@ describe('GameScreen', () => {
       .mockReturnValueOnce(firstRound)
       .mockReturnValueOnce(firstRound)
       .mockReturnValueOnce(secondRound)
-    render(<GameScreen createRound={createRound} />)
+    renderReady(<GameScreen createRound={createRound} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Hit D' }))
     advanceHit()
@@ -699,7 +769,7 @@ describe('GameScreen', () => {
 
   it('cleans up the pending transition when unmounted', () => {
     const createRound = vi.fn<() => GameRound>().mockReturnValue(firstRound)
-    const { unmount } = render(<GameScreen createRound={createRound} />)
+    const { unmount } = renderReady(<GameScreen createRound={createRound} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Hit C' }))
     unmount()
